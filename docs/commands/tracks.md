@@ -22,6 +22,7 @@ Options:
   --help  Show this message and exit.
 
 Commands:
+  list    List tracks with optional filters.
   search  Search for tracks using fuzzy matching.
   show    Display detailed information about a specific track.
   top     Show top tracks with flexible time range support.
@@ -59,11 +60,10 @@ Options:
   -l, --limit INTEGER             Maximum results  [default: 20]
   --artist TEXT                   Filter by artist name
   --album TEXT                    Filter by album title
-  --format [table|csv|json|jsonl]
+  -f, --format [table|csv|json|jsonl]
                                   Output format  [default: table]
-  --fields TEXT                   Fields to include in output (comma-separated
-                                  or repeated). Available: id, track, artist,
-                                  album, plays, last_played
+  --fields TEXT                   Fields to include in output. Available: id,
+                                  track, artist, album, plays, last_played
   --select                        Interactive mode: select a single result and
                                   output its details as JSON
   --help                          Show this message and exit.
@@ -94,22 +94,19 @@ Usage: scrobbledb tracks top [OPTIONS]
       # Top tracks by specific artist in last year     scrobbledb tracks top
       --artist "Radiohead" --period year
 
-      # Top tracks in date range     scrobbledb tracks top --since 2024-01-01
-      --until 2024-12-31
-
 Options:
   -d, --database FILE             Database path (default: XDG data directory)
-  -l, --limit INTEGER             Number of tracks to show  [default: 10]
-  -s, --since TEXT                Start date/time for analysis period
-  -u, --until TEXT                End date/time for analysis period
+  -l, --limit INTEGER             Maximum results  [default: 20]
   --period [week|month|quarter|year|all-time]
                                   Predefined period
+  -u, --until TEXT                End date/time for analysis period
+  -s, --since TEXT                Start date/time for analysis period
   --artist TEXT                   Filter by artist name
-  --format [table|csv|json|jsonl]
+  -f, --format [table|csv|json|jsonl]
                                   Output format  [default: table]
-  --fields TEXT                   Fields to include in output (comma-separated
-                                  or repeated). Available: rank, track, artist,
-                                  album, plays, percentage
+  --fields TEXT                   Fields to include. Available: rank, track,
+                                  artist, album, plays, percentage
+  --album TEXT                    Filter by album title
   --help                          Show this message and exit.
 ```
 <!-- [[[end]]] -->
@@ -141,13 +138,14 @@ Usage: scrobbledb tracks show [OPTIONS] [TRACK_TITLE]
       # Use track ID     scrobbledb tracks show --track-id 456
 
 Options:
-  -d, --database FILE          Database path (default: XDG data directory)
-  --track-id TEXT              Use track ID instead of title
-  --artist TEXT                Artist name (to disambiguate tracks with same
-                               title)
-  --album TEXT                 Album title (to disambiguate further)
-  --show-plays                 Show individual play timestamps
-  --format [table|json|jsonl]  Output format  [default: table]
-  --help                       Show this message and exit.
+  -d, --database FILE             Database path (default: XDG data directory)
+  --track-id TEXT                 Use track ID instead of title
+  --artist TEXT                   Artist name (to disambiguate tracks with same
+                                  title)
+  --album TEXT                    Album title (to disambiguate further)
+  --show-plays                    Show individual play timestamps
+  -f, --format [table|json|jsonl]
+                                  Output format  [default: table]
+  --help                          Show this message and exit.
 ```
 <!-- [[[end]]] -->
