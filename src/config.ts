@@ -8,7 +8,10 @@
  * No Node.js "fs", "path", "os" imports.
  */
 
-const APP_NAME = "dev.pirateninja.scrobbledb";
+const APP_NAME = "dev.pirateninja.scrobblevault";
+const LEGACY_APP_NAME = "dev.pirateninja.scrobbledb";
+const DEFAULT_DB_FILE_NAME = "scrobblevault.db";
+const LEGACY_DB_FILE_NAME = "scrobbledb.db";
 export const SCROBBLEVAULT_COMPAT_PATH = "/2.0/";
 
 export interface AuthData {
@@ -31,6 +34,10 @@ export function joinPath(...parts: string[]): string {
     .replace(/[/\\]+$/, "");
 }
 
+function pathExistsSync(path: string): boolean {
+  return Bun.spawnSync(["test", "-e", path]).exitCode === 0;
+}
+
 /** Return the current user's home directory using environment variables. */
 function homeDir(): string {
   if (process.platform === "win32") {
@@ -51,7 +58,9 @@ export async function getDataDir(): Promise<string> {
   } else {
     base = Bun.env.XDG_DATA_HOME ?? joinPath(homeDir(), ".local", "share");
   }
-  const dir = joinPath(base, APP_NAME);
+  const appDir = joinPath(base, APP_NAME);
+  const legacyDir = joinPath(base, LEGACY_APP_NAME);
+  const dir = !pathExistsSync(appDir) && pathExistsSync(legacyDir) ? legacyDir : appDir;
   await Bun.write(joinPath(dir, ".keep"), "");
   return dir;
 }
@@ -66,15 +75,24 @@ export function getDataDirSync(): string {
   } else {
     base = Bun.env.XDG_DATA_HOME ?? joinPath(homeDir(), ".local", "share");
   }
-  return joinPath(base, APP_NAME);
+  const appDir = joinPath(base, APP_NAME);
+  const legacyDir = joinPath(base, LEGACY_APP_NAME);
+  return !pathExistsSync(appDir) && pathExistsSync(legacyDir) ? legacyDir : appDir;
 }
 
 export function getDefaultDbPath(): string {
-  return joinPath(getDataDirSync(), "scrobbledb.db");
+  const dataDir = getDataDirSync();
+  const dbPath = joinPath(dataDir, DEFAULT_DB_FILE_NAME);
+  const legacyDbPath = joinPath(dataDir, LEGACY_DB_FILE_NAME);
+  return !pathExistsSync(dbPath) && pathExistsSync(legacyDbPath) ? legacyDbPath : dbPath;
 }
 
 export function getDefaultAuthPath(): string {
   return joinPath(getDataDirSync(), "auth.json");
+}
+
+export function getConfiguredDbPath(): string | undefined {
+  return Bun.env.SCROBBLEVAULT_DB_PATH ?? Bun.env.SCROBBLEDB_PATH ?? undefined;
 }
 
 // ─── Auth I/O (Bun-native) ────────────────────────────────────────────────────

@@ -1,5 +1,5 @@
 /**
- * HTML page templates for the scrobbledb web interface.
+ * HTML page templates for the ScrobbleVault web interface.
  *
  * All pages are rendered server-side as plain HTML strings.
  * Styling is inline via a single shared CSS block — no build step, no
@@ -186,7 +186,7 @@ export function layout(opts: {
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>${escHtml(opts.title)} — scrobbledb</title>
+  <title>${escHtml(opts.title)} — ScrobbleVault</title>
   <style>${CSS}</style>
 </head>
 <body>
@@ -196,11 +196,9 @@ export function layout(opts: {
     ${opts.body}
   </div>
   <footer>
-    scrobbledb — Bun.js port of
+    ScrobbleVault is a rewrite inspired by
     <a href="https://github.com/jacobian/lastfm-to-sqlite" target="_blank" rel="noopener">lastfm-to-sqlite</a>
     by <a href="https://github.com/jacobian" target="_blank" rel="noopener">Jacob Kaplan-Moss</a>.
-    Extended by <a href="https://github.com/crossjam" target="_blank" rel="noopener">Brian M. Dennis</a>.
-    Ported to Bun.js with web interface by the scrobbledb contributors.
   </footer>
 </body>
 </html>`;

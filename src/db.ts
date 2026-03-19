@@ -5,7 +5,7 @@
  *   - bun:sqlite          for zero-dependency SQLite access
  *   - Bun.spawnSync/env   for directory creation (no "fs" import)
  *
- * Schema mirrors the original Python scrobbledb and extends it with
+ * Schema powers the ScrobbleVault rewrite and extends it with
  * local-user auth, session storage, metadata for ingested scrobbles, and
  * current now-playing state for the self-hosted compatibility backend.
  */

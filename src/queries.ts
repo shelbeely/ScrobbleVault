@@ -1,5 +1,5 @@
 /**
- * Database query functions for scrobbledb.
+ * Database query functions for ScrobbleVault.
  *
  * All query results are plain objects ready for JSON serialisation or
  * table rendering.  Queries are parameterised to prevent SQL injection.
