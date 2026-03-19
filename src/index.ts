@@ -1,5 +1,5 @@
 /**
- * scrobbledb — Bun.js web application entry point.
+ * ScrobbleVault — Bun.js web application entry point.
  *
  * Starts a Bun-native HTTP server (Bun.serve) on the configured port.
  * Uses bun:sqlite for the database and Bun's built-in fetch for the
@@ -24,7 +24,7 @@ function flag(name: string, fallback: string): string {
 
 if (args.includes("--help") || args.includes("-h")) {
   console.log(`
-scrobbledb — Save your listening history from Last.fm or Libre.fm.
+ScrobbleVault — Save your listening history from Last.fm or Libre.fm.
 
 Usage:
   bun run src/index.ts [options]
@@ -66,7 +66,7 @@ const server = Bun.serve({
 
 console.log(`
   ╔══════════════════════════════════════════╗
-  ║         scrobbledb  (Bun ${Bun.version})        ║
+  ║        ScrobbleVault  (Bun ${Bun.version})       ║
   ╠══════════════════════════════════════════╣
   ║  Web UI  →  http://${HOST}:${PORT}${" ".repeat(Math.max(0, 18 - HOST.length - String(PORT).length))}║
   ║  API     →  http://${HOST}:${PORT}/api${" ".repeat(Math.max(0, 14 - HOST.length - String(PORT).length))}    ║

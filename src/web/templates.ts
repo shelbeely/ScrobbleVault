@@ -697,26 +697,47 @@ export function renderSettings(
     <div class="form-card" style="margin-bottom:1.5rem">
       <h2 style="font-size:1rem;margin-bottom:1rem;color:#94a3b8">API Credentials</h2>
       ${current.hasCredentials ? `<div class="flash flash-success" style="margin-bottom:1rem">✓ Credentials configured for <strong>${escHtml(current.username)}</strong> on <strong>${escHtml(current.network === "librefm" ? "Libre.fm" : "Last.fm")}</strong></div>` : `<div class="flash flash-info" style="margin-bottom:1rem">No credentials configured yet.</div>`}
-      <form method="post" action="/settings/auth">
+      <form method="post" action="/settings/auth" id="settings-form">
         <label>Network</label>
-        <select name="network">
+        <select name="network" id="network-select" onchange="updateNetworkHelp()">
           <option value="lastfm"${current.network !== "librefm" ? " selected" : ""}>Last.fm</option>
           <option value="librefm"${current.network === "librefm" ? " selected" : ""}>Libre.fm</option>
         </select>
         <label>Username</label>
         <input name="username" value="${escHtml(current.username)}" placeholder="your username" required>
         <label>API Key</label>
-        <input name="api_key" placeholder="API key" required>
+        <input name="api_key" id="api-key-input" placeholder="API key" required>
         <label>Shared Secret</label>
         <input name="shared_secret" placeholder="shared secret" required>
         <label>Password</label>
         <input type="password" name="password" placeholder="your password" required>
-        <p style="font-size:.8rem;color:#475569;margin-bottom:1rem">
-          Get Last.fm API credentials at <a href="https://www.last.fm/api/account/create" target="_blank" rel="noopener">last.fm/api/account/create</a><br>
-          Get Libre.fm API credentials at <a href="https://libre.fm/api/account/create" target="_blank" rel="noopener">libre.fm/api/account/create</a>
-        </p>
+        <div id="help-lastfm" style="font-size:.8rem;color:#475569;margin-bottom:1rem">
+          Get your Last.fm API credentials at <a href="https://www.last.fm/api/account/create" target="_blank" rel="noopener">last.fm/api/account/create</a>
+        </div>
+        <div id="help-librefm" style="font-size:.8rem;color:#475569;margin-bottom:1rem;display:none">
+          Libre.fm does not require API key registration. You may <strong style="color:#94a3b8">invent any 32-character string</strong> as your API key and shared secret — they are not validated beyond length.
+          See the <a href="https://github.com/libre-fm/developer/wiki/Libre.fm-fundamentals" target="_blank" rel="noopener">Libre.fm developer docs</a> for details.
+        </div>
         <button type="submit" class="btn">Save &amp; Authenticate</button>
       </form>
+      <script>
+        function updateNetworkHelp() {
+          const net = document.getElementById('network-select').value;
+          document.getElementById('help-lastfm').style.display  = net === 'lastfm'  ? '' : 'none';
+          document.getElementById('help-librefm').style.display = net === 'librefm' ? '' : 'none';
+          const keyInput = document.getElementById('api-key-input');
+          if (net === 'librefm') {
+            keyInput.setAttribute('maxlength', '32');
+            keyInput.setAttribute('minlength', '32');
+            keyInput.placeholder = '32-character API key (you can make one up)';
+          } else {
+            keyInput.removeAttribute('maxlength');
+            keyInput.removeAttribute('minlength');
+            keyInput.placeholder = 'API key';
+          }
+        }
+        updateNetworkHelp();
+      </script>
     </div>
   `;
   return layout({ title: "Settings", active: "/settings", body, flash });
