@@ -6,6 +6,8 @@
  * external assets, no JavaScript frameworks.
  */
 
+import type { WrappedYear } from "../queries";
+
 // ─── Shared chrome ────────────────────────────────────────────────────────────
 
 export const CSS = `
@@ -280,6 +282,11 @@ export function renderDashboard(
     </div>
 
     <div class="explore-links" style="margin-bottom:1.5rem">
+      <a href="/wrapped" class="explore-card">
+        <span class="ec-icon">🎁</span>
+        <div class="ec-label">Every Year, Forever</div>
+        <div class="ec-title">Wrapped</div>
+      </a>
       <a href="/universe" class="explore-card">
         <span class="ec-icon">🌌</span>
         <div class="ec-label">Killer Feature</div>
@@ -1194,8 +1201,6 @@ export function renderTaste(drift: {
 
 // ─── Yearly Wrapped ───────────────────────────────────────────────────────────
 
-import type { WrappedYear } from "../queries";
-
 const MONTH_NAMES = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"] as const;
 
 function wrappedMonthChart(monthly_counts: number[]): string {
@@ -1297,6 +1302,19 @@ export function renderWrapped(
     ? Math.round(data.total_scrobbles / data.active_days)
     : 0;
 
+  // Estimated listening time (hours)
+  const estHours = Math.round(data.estimated_minutes / 60);
+
+  // Year-over-year label
+  const yoyLabel = data.yoy_change_pct === null
+    ? null
+    : data.yoy_change_pct >= 0
+      ? `+${data.yoy_change_pct}% vs ${year - 1}`
+      : `${data.yoy_change_pct}% vs ${year - 1}`;
+  const yoyColor = data.yoy_change_pct === null
+    ? "#64748b"
+    : data.yoy_change_pct >= 0 ? "#4ade80" : "#f87c7c";
+
   // First/last scrobble nicely formatted
   const firstDate = data.first_scrobble ? fmtDate(data.first_scrobble) : "—";
   const lastDate  = data.last_scrobble  ? fmtDate(data.last_scrobble)  : "—";
@@ -1308,14 +1326,20 @@ export function renderWrapped(
 
     <div class="wrapped-hero">
       <div style="font-size:.8rem;color:#64748b;text-transform:uppercase;letter-spacing:.1em;margin-bottom:.5rem">Your ${year} in Music</div>
-      <div class="wrapped-big-num">${fmtNum(data.total_scrobbles)}</div>
-      <div class="wrapped-big-label">scrobbles</div>
+      <div style="display:flex;align-items:baseline;gap:1rem;flex-wrap:wrap">
+        <div>
+          <div class="wrapped-big-num">${fmtNum(data.total_scrobbles)}</div>
+          <div class="wrapped-big-label">scrobbles</div>
+        </div>
+        ${yoyLabel ? `<div style="font-size:1.1rem;font-weight:700;color:${yoyColor};align-self:flex-end;padding-bottom:.15rem">${escHtml(yoyLabel)}</div>` : ""}
+      </div>
       <div class="wrapped-hero-grid">
         <div><div style="font-size:1.6rem;font-weight:700;color:#7c9ef8">${fmtNum(data.unique_artists)}</div><div style="font-size:.75rem;color:#64748b;text-transform:uppercase;letter-spacing:.06em">Artists</div></div>
         <div><div style="font-size:1.6rem;font-weight:700;color:#f87c9e">${fmtNum(data.unique_albums)}</div><div style="font-size:.75rem;color:#64748b;text-transform:uppercase;letter-spacing:.06em">Albums</div></div>
         <div><div style="font-size:1.6rem;font-weight:700;color:#9ef87c">${fmtNum(data.unique_tracks)}</div><div style="font-size:.75rem;color:#64748b;text-transform:uppercase;letter-spacing:.06em">Tracks</div></div>
         <div><div style="font-size:1.6rem;font-weight:700;color:#f8c97c">${fmtNum(data.active_days)}</div><div style="font-size:.75rem;color:#64748b;text-transform:uppercase;letter-spacing:.06em">Listening Days</div></div>
         <div><div style="font-size:1.6rem;font-weight:700;color:#c47cf8">${fmtNum(data.new_artists_count)}</div><div style="font-size:.75rem;color:#64748b;text-transform:uppercase;letter-spacing:.06em">New Discoveries</div></div>
+        <div><div style="font-size:1.6rem;font-weight:700;color:#7cf8e6">${fmtNum(estHours)}</div><div style="font-size:.75rem;color:#64748b;text-transform:uppercase;letter-spacing:.06em">Hours Listened</div></div>
       </div>
     </div>
 
@@ -1339,6 +1363,20 @@ export function renderWrapped(
         <div class="wrapped-milestone-text">
           You listened on <strong>${activePct}%</strong> of all days<br>
           avg <strong>${fmtNum(avgDaily)}</strong> plays on active days
+        </div>
+      </div>
+      <div class="wrapped-milestone">
+        <div class="wrapped-milestone-icon">⚡</div>
+        <div class="wrapped-milestone-text">
+          Best streak in ${year}: <strong>${data.top_streak}</strong> day${data.top_streak === 1 ? "" : "s"} in a row<br>
+          <span style="color:#475569">Longest listening run of the year</span>
+        </div>
+      </div>
+      <div class="wrapped-milestone">
+        <div class="wrapped-milestone-icon">🎧</div>
+        <div class="wrapped-milestone-text">
+          ~<strong>${fmtNum(estHours)} hours</strong> of music<br>
+          <span style="color:#475569">≈ ${Math.round(estHours / 24)} full days of listening</span>
         </div>
       </div>
       <div class="wrapped-milestone">

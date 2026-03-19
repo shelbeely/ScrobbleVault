@@ -927,6 +927,12 @@ export interface WrappedYear {
   new_artists_count: number;
   /** Total listening days in the year */
   active_days: number;
+  /** Estimated listening time in minutes (scrobbles × avg ~3.5 min) */
+  estimated_minutes: number;
+  /** Year-over-year scrobble change in percentage points (null if no prior year) */
+  yoy_change_pct: number | null;
+  /** Longest consecutive listening-day streak within this year */
+  top_streak: number;
   top_artists: WrappedArtist[];
   top_tracks: WrappedTrack[];
   top_albums: WrappedAlbum[];
@@ -1073,6 +1079,36 @@ export function getWrappedYear(db: Database, year: number): WrappedYear | null {
     peak_day_count: peakDay?.n    ?? 0,
     new_artists_count: newArtistsRow?.n ?? 0,
     active_days:    activeDaysRow?.n ?? 0,
+    estimated_minutes: Math.round(counts.total_scrobbles * 3.5),
+    yoy_change_pct: (() => {
+      const prevYear = year - 1;
+      const pyStart  = `${prevYear}-01-01T00:00:00.000Z`;
+      const pyEnd    = `${prevYear}-12-31T23:59:59.999Z`;
+      const prev = db
+        .query(`SELECT COUNT(*) AS n FROM plays WHERE timestamp >= ? AND timestamp <= ?`)
+        .get(pyStart, pyEnd) as { n: number } | null;
+      if (!prev || prev.n === 0) return null;
+      return Math.round(((counts.total_scrobbles - prev.n) / prev.n) * 100);
+    })(),
+    top_streak: (() => {
+      const days = db
+        .query(
+          `SELECT DISTINCT strftime('%Y-%m-%d', timestamp) AS day
+           FROM plays WHERE timestamp >= ? AND timestamp <= ?
+           ORDER BY day ASC`,
+        )
+        .all(yStart, yEnd) as { day: string }[];
+      if (days.length === 0) return 0;
+      let best = 1, cur = 1;
+      for (let i = 1; i < days.length; i++) {
+        const prev = new Date(days[i - 1]!.day);
+        const next = new Date(days[i]!.day);
+        const diffDays = Math.round((next.getTime() - prev.getTime()) / 86_400_000);
+        if (diffDays === 1) { cur++; if (cur > best) best = cur; }
+        else cur = 1;
+      }
+      return best;
+    })(),
     top_artists,
     top_tracks,
     top_albums,
