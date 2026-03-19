@@ -134,12 +134,36 @@ get(/^\/$/, (_req, _url, db) => {
   const streak     = getListeningStreak(db);
   const thisYear   = getScrobblesThisYear(db);
   const thisMonth  = getScrobblesThisMonth(db);
+
+  // Build genre clusters from the artist graph (dynamic, not static tags)
+  const graph = getArtistGraph(db, 60);
+  // Group nodes by cluster; pick the top artist (highest play_count) as the cluster label
+  const clusterMap = new Map<number, { topArtist: string; artists: string[]; plays: number }>();
+  for (const node of graph.nodes) {
+    const existing = clusterMap.get(node.cluster);
+    if (!existing) {
+      clusterMap.set(node.cluster, { topArtist: node.name, artists: [node.name], plays: node.play_count });
+    } else {
+      existing.artists.push(node.name);
+      if (node.play_count > existing.plays) {
+        existing.topArtist = node.name;
+        existing.plays = node.play_count;
+      }
+    }
+  }
+  // Sort clusters by total plays descending, keep top 6
+  const genreClusters = [...clusterMap.entries()]
+    .map(([id, c]) => ({ id, ...c }))
+    .sort((a, b) => b.plays - a.plays)
+    .slice(0, 6);
+
   return html(renderDashboard(
     stats as unknown as Record<string, unknown>,
     topArtists as unknown as Record<string, unknown>[],
     streak,
     thisYear,
     thisMonth,
+    genreClusters,
   ));
 });
 

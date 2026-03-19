@@ -247,14 +247,33 @@ export function renderDashboard(
   streak?: { current_streak: number; longest_streak: number; total_days_listened: number; total_active_weeks: number },
   thisYear?: number,
   thisMonth?: number,
+  genreClusters?: { id: number; topArtist: string; artists: string[]; plays: number }[],
 ): string {
   const streakData = streak ?? { current_streak: 0, longest_streak: 0, total_days_listened: 0, total_active_weeks: 0 };
 
-  // Top-6 artists → taste cluster chips
-  const clusterChips = topArtists.slice(0, 6).map((a, i) => {
-    const color = CLUSTER_COLORS[i % CLUSTER_COLORS.length]!;
-    return `<span class="cluster-chip" style="background:${color}22;color:${color};border:1px solid ${color}44">${escHtml(a.artist_name)}</span>`;
-  }).join("");
+  // Genre cluster chips — dynamic groups derived from co-listening patterns
+  const clusterSection = genreClusters && genreClusters.length > 0 ? (() => {
+    const chips = genreClusters.map((c, i) => {
+      const color   = CLUSTER_COLORS[i % CLUSTER_COLORS.length]!;
+      // Show up to 3 artist names from the cluster for richer label
+      const preview = c.artists.slice(0, 3).map(a => escHtml(a)).join(" · ");
+      const extra   = c.artists.length > 3 ? ` +${c.artists.length - 3}` : "";
+      const title   = c.artists.map(a => escHtml(a)).join(", ");
+      return `<span class="cluster-chip" style="background:${color}22;color:${color};border:1px solid ${color}44;max-width:none" title="${title}">${preview}${extra}</span>`;
+    }).join("");
+    return `
+      <p style="font-size:.75rem;color:#64748b;text-transform:uppercase;letter-spacing:.05em;margin-bottom:.4rem">🎵 Your Genre Clusters <span style="font-weight:400;color:#334155;text-transform:none;letter-spacing:0">(dynamic · based on your listening)</span></p>
+      <div class="cluster-chips" style="flex-direction:column;align-items:flex-start">${chips}</div>`;
+  })() : (topArtists.length > 0 ? (() => {
+    // Fallback: individual top-artist chips when no graph data available
+    const chips = topArtists.slice(0, 6).map((a, i) => {
+      const color = CLUSTER_COLORS[i % CLUSTER_COLORS.length]!;
+      return `<span class="cluster-chip" style="background:${color}22;color:${color};border:1px solid ${color}44">${escHtml(a.artist_name as string)}</span>`;
+    }).join("");
+    return `
+      <p style="font-size:.75rem;color:#64748b;text-transform:uppercase;letter-spacing:.05em;margin-bottom:.4rem">Your Taste Identity</p>
+      <div class="cluster-chips">${chips}</div>`;
+  })() : "");
 
   const body = `
     <div class="brain-hero">
@@ -276,9 +295,7 @@ export function renderDashboard(
         <div class="stat-card"><div class="value">${fmtNum(streakData.total_days_listened)}</div><div class="label">Days Active</div></div>
         <div class="stat-card"><div class="value">${fmtNum(streakData.total_active_weeks)}</div><div class="label">Weeks Active</div></div>
       </div>
-      ${topArtists.length > 0 ? `
-      <p style="font-size:.75rem;color:#64748b;text-transform:uppercase;letter-spacing:.05em;margin-bottom:.4rem">Your Taste Identity</p>
-      <div class="cluster-chips">${clusterChips}</div>` : ""}
+      ${clusterSection}
     </div>
 
     <div class="explore-links" style="margin-bottom:1.5rem">
