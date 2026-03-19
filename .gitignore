@@ -8,3 +8,7 @@ __pycache__/
 .venv/
 sys.stderr
 /.claude/
+
+# Bun / Node
+node_modules/
+bun.lockb

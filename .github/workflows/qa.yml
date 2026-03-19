@@ -6,57 +6,48 @@ on:
   pull_request:
     branches: ["**"]
 
-# Cancel in-progress runs when a new commit is pushed
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
-# Explicitly set permissions for security best practices
 permissions:
   contents: read
 
 jobs:
   qa:
-    name: QA Checks (Python ${{ matrix.python-version }})
+    name: Type-check & smoke-test (Bun ${{ matrix.bun-version }})
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        python-version: ["3.11", "3.12", "3.13"]
+        bun-version: ["1.x"]
       fail-fast: false
-    
+
     steps:
-      - name: Check out repository
+      - name: Checkout
         uses: actions/checkout@v4
-      
-      - name: Set up Python ${{ matrix.python-version }}
-        uses: actions/setup-python@v5
+
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@v2
         with:
-          python-version: ${{ matrix.python-version }}
-      
-      - name: Install uv
-        uses: astral-sh/setup-uv@v4
-        with:
-          enable-cache: true
-      
+          bun-version: ${{ matrix.bun-version }}
+
       - name: Install dependencies
-        run: uv sync
+        run: bun install
 
-      - name: Verify CLI docs are in sync
-        env:
-          COLUMNS: 100  # stabilize click help wrapping across environments
+      - name: TypeScript type-check
+        run: bun run typecheck
+
+      - name: Verify no bare Node.js imports
         run: |
-          uv run poe docs:cli
-          git diff --name-only --exit-code docs/commands
+          # Fail if any src file imports from bare "fs", "crypto", "path",
+          # "os", "http", or "readline" without the node: prefix.
+          if grep -rn --include="*.ts" \
+               -E 'from "(fs|crypto|path|os|http|readline)"' src/; then
+            echo "❌ Bare Node.js imports found — use Bun-native APIs instead."
+            exit 1
+          fi
+          echo "✅ No bare Node.js imports."
 
-      - name: Run linting
-        run: uv run poe lint
-      
-      - name: Run type checking
-        run: uv run poe type
-      
-      - name: Run security audit
-        run: uv run poe audit
-        continue-on-error: true  # Don't fail the build on audit warnings
-      
-      - name: Run tests
-        run: uv run poe test
+      - name: Smoke-test startup
+        run: |
+          SCROBBLEDB_PATH=/tmp/ci-test.db timeout 5 bun run src/index.ts --help
