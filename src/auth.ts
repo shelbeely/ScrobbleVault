@@ -122,6 +122,10 @@ export function getSessionTokenFromRequest(req: Request): string | null {
     const token = authHeader.slice("Bearer ".length).trim();
     if (token) return token;
   }
+  if (authHeader?.startsWith("Token ")) {
+    const token = authHeader.slice("Token ".length).trim();
+    if (token) return token;
+  }
 
   const cookies = parseCookies(req.headers.get("cookie"));
   return cookies[SESSION_COOKIE_NAME] ?? null;

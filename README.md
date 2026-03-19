@@ -1,8 +1,23 @@
 # ScrobbleVault
 
-**A Bun-native listening archive and self-hosted scrobbling backend for Last.fm, Libre.fm, and Panoscrobbler-style clients.**
+**A Bun-native listening archive and self-hosted scrobbling backend for Last.fm, Libre.fm, ListenBrainz, and Panoscrobbler-style clients.**
 
 ScrobbleVault stores your listening history in local SQLite, serves a browser UI, exposes a clean JSON API, and now includes a **Last.fm-compatible compatibility endpoint** so you can scrobble directly into it from apps like **Panoscrobbler** using its **“Last.fm-like instance”** connection type.
+
+---
+
+## Protocol model
+
+ScrobbleVault now presents a cleaner mental model for protocol support in the self-hosted backend:
+
+- **Libre.fm** → retro compatibility layer
+- **Last.fm** → dominant but closed ecosystem
+- **ListenBrainz** → future-proof open system
+
+In practical terms, the backend exposes:
+
+- **`/2.0/`** for the Last.fm / Libre.fm compatibility family
+- **`/1/`** for ListenBrainz-style token-authenticated submission and history APIs
 
 ---
 
@@ -19,6 +34,12 @@ ScrobbleVault stores your listening history in local SQLite, serves a browser UI
   - `track.scrobble`
   - `user.getRecentTracks`
   - `user.getInfo`
+- **ListenBrainz-compatible `/1/` endpoint** for:
+  - `GET /1/validate-token`
+  - `POST /1/submit-listens`
+  - `GET /1/user/:username/listens`
+  - `GET /1/user/:username/listen-count`
+  - `GET /1/user/:username/playing-now`
 - Import from **Last.fm**, **Libre.fm**, or another **ScrobbleVault** instance as a third network option
 - Duplicate-scrobble protection with a configurable time window
 - Now-playing state cache for the self-hosted backend
@@ -323,6 +344,65 @@ Legacy analytics endpoints remain available too:
 - `GET /api/tracks`
 - `GET /api/plays`
 - `GET /api/search?q=...`
+
+---
+
+## ListenBrainz-compatible API examples
+
+Use the token returned by `POST /api/auth/login` as your ListenBrainz-style auth token via `Authorization: Token <token>`.
+
+### Validate token
+
+```bash
+curl http://localhost:3000/1/validate-token \
+  -H 'Authorization: Token <session-token>'
+```
+
+### Submit playing now
+
+```bash
+curl -X POST http://localhost:3000/1/submit-listens \
+  -H 'Authorization: Token <session-token>' \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "listen_type": "playing_now",
+    "payload": [{
+      "track_metadata": {
+        "artist_name": "Boards of Canada",
+        "track_name": "Roygbiv",
+        "release_name": "Music Has the Right to Children",
+        "additional_info": {"submission_client": "ScrobbleVault curl demo"}
+      }
+    }]
+  }'
+```
+
+### Submit a completed listen
+
+```bash
+curl -X POST http://localhost:3000/1/submit-listens \
+  -H 'Authorization: Token <session-token>' \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "listen_type": "single",
+    "payload": [{
+      "listened_at": 1710888000,
+      "track_metadata": {
+        "artist_name": "Boards of Canada",
+        "track_name": "Roygbiv",
+        "release_name": "Music Has the Right to Children"
+      }
+    }]
+  }'
+```
+
+### Fetch listens
+
+```bash
+curl 'http://localhost:3000/1/user/admin/listens?count=5'
+curl 'http://localhost:3000/1/user/admin/listen-count'
+curl 'http://localhost:3000/1/user/admin/playing-now'
+```
 
 ---
 

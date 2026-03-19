@@ -25,7 +25,7 @@ function flag(name: string, fallback: string): string {
 
 if (args.includes("--help") || args.includes("-h")) {
   console.log(`
-ScrobbleVault — Save your listening history from Last.fm, Libre.fm, or a self-hosted ScrobbleVault instance.
+ScrobbleVault — Save your listening history with Last.fm, Libre.fm, ListenBrainz, or a self-hosted ScrobbleVault instance.
 
 Usage:
   bun run src/index.ts [options]
@@ -72,11 +72,13 @@ console.log(`
   ╠════════════════════════════════════════════════════════════╣
   ║  Web UI       →  http://${HOST}:${PORT}${" ".repeat(Math.max(0, 28 - HOST.length - String(PORT).length))}║
   ║  JSON API     →  http://${HOST}:${PORT}/api${" ".repeat(Math.max(0, 24 - HOST.length - String(PORT).length))}║
+  ║  LB API       →  http://${HOST}:${PORT}/1/${" ".repeat(Math.max(0, 25 - HOST.length - String(PORT).length))}║
   ║  Compat API   →  http://${HOST}:${PORT}/2.0/${" ".repeat(Math.max(0, 23 - HOST.length - String(PORT).length))}║
   ╚════════════════════════════════════════════════════════════╝
 
   Default local user: ${seededUser.username}
   Open http://${HOST}:${PORT} in your browser to get started.
+  ListenBrainz-style API root: http://${HOST}:${PORT}/1/
   Point Panoscrobbler's “Last.fm-like instance” URL at http://${HOST}:${PORT}/2.0/
   Press Ctrl+C to stop.
 `);

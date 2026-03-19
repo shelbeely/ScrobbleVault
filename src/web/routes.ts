@@ -27,6 +27,7 @@ import {
   type NetworkName,
 } from "../config";
 import { getLatestTimestamp, initSchema, setupFts5, upsertBatch } from "../db";
+import { formatListenBrainzListen, formatListenBrainzPlayingNow, listenBrainzNowPlayingInput, listenBrainzScrobbleInput, parseListenBrainzSubmitBody } from "../listenbrainz";
 import { getSessionKey, getRecentTracksCount, recentTracks } from "../lastfm";
 import {
   getAlbums,
@@ -462,6 +463,160 @@ async function handleCompatibilityRequest(req: Request, url: URL, db: Database):
 
 // ─── Route registry ───────────────────────────────────────────────────────────
 
+function listenBrainzError(message: string, status = 400): Response {
+  return json({ code: status, error: message }, status);
+}
+
+function getUserByUsername(db: Database, username: string): { id: number; username: string; created_at: string } | null {
+  return db.query(
+    `SELECT id, username, created_at FROM app_users WHERE username = ?`,
+  ).get(username) as { id: number; username: string; created_at: string } | null;
+}
+
+async function handleListenBrainzSubmit(req: Request, db: Database): Promise<Response> {
+  const user = getAuthenticatedUser(req, db);
+  if (!user) return listenBrainzError("Invalid authorization token.", 401);
+
+  const body = await parseJsonBody(req);
+  const parsed = parseListenBrainzSubmitBody(body);
+  if (!parsed || parsed.payload.length === 0) {
+    return listenBrainzError("Invalid ListenBrainz payload.", 400);
+  }
+
+  const userAgent = req.headers.get("user-agent") ?? "listenbrainz-client";
+  if (parsed.listenType === "playing_now") {
+    const nowPlaying = listenBrainzNowPlayingInput(parsed.payload[0]!, userAgent);
+    if (!nowPlaying) return listenBrainzError("track_metadata.artist_name and track_metadata.track_name are required.", 400);
+
+    const state = updateNowPlaying(db, user.id, nowPlaying);
+    return json({
+      status: "ok",
+      payload: {
+        count: 1,
+        playing_now: true,
+        listens: [formatListenBrainzPlayingNow(state)],
+      },
+    });
+  }
+
+  const responsePayload: Array<Record<string, unknown>> = [];
+  let insertedCount = 0;
+  for (const listen of parsed.payload) {
+    const scrobbleInput = listenBrainzScrobbleInput(listen, userAgent);
+    if (!scrobbleInput) {
+      responsePayload.push({ inserted: false, reason: "missing required listen metadata" });
+      continue;
+    }
+    const inserted = insertScrobble(db, scrobbleInput);
+    responsePayload.push({
+      inserted: !inserted.duplicate,
+      duplicate: inserted.duplicate,
+      listened_at: Math.floor(new Date(inserted.scrobble.play.timestamp).getTime() / 1000),
+      track_metadata: {
+        artist_name: inserted.scrobble.artist.name,
+        track_name: inserted.scrobble.track.title,
+        release_name: inserted.scrobble.album.title === "(single)" ? "" : inserted.scrobble.album.title,
+      },
+    });
+    if (!inserted.duplicate) insertedCount++;
+  }
+
+  return json({
+    status: "ok",
+    payload: {
+      count: insertedCount,
+      listens: responsePayload,
+    },
+  });
+}
+
+function handleListenBrainzValidateToken(req: Request, db: Database): Response {
+  const token = getSessionTokenFromRequest(req) ?? new URL(req.url).searchParams.get("token")?.trim() ?? "";
+  if (!token) return listenBrainzError("No token provided.", 400);
+  const user = getUserFromSessionToken(db, token);
+  return json(user
+    ? { code: 200, message: "Token valid.", valid: true, user_name: user.username }
+    : { code: 200, message: "Token invalid.", valid: false });
+}
+
+function handleListenBrainzListens(url: URL, db: Database, username: string): Response {
+  const user = getUserByUsername(db, username);
+  if (!user) return listenBrainzError("User not found.", 404);
+
+  const count = Math.max(1, Math.min(200, qpInt(url, "count", 25)));
+  const maxTsValue = url.searchParams.get("max_ts")?.trim();
+  const minTsValue = url.searchParams.get("min_ts")?.trim();
+  if (maxTsValue && minTsValue) return listenBrainzError("Specify max_ts or min_ts, not both.", 400);
+
+  const conditions: string[] = [];
+  const params: string[] = [];
+  if (maxTsValue) {
+    const maxTs = parseInt(maxTsValue, 10);
+    if (!Number.isNaN(maxTs)) {
+      conditions.push("plays.timestamp < ?");
+      params.push(new Date(maxTs * 1000).toISOString());
+    }
+  }
+  if (minTsValue) {
+    const minTs = parseInt(minTsValue, 10);
+    if (!Number.isNaN(minTs)) {
+      conditions.push("plays.timestamp > ?");
+      params.push(new Date(minTs * 1000).toISOString());
+    }
+  }
+  const where = conditions.length ? `WHERE ${conditions.join(" AND ")}` : "";
+
+  const rows = db.query(
+    `SELECT plays.timestamp, tracks.title AS track_title, albums.title AS album_title,
+            artists.name AS artist_name, play_metadata.source AS source, play_metadata.client AS client
+     FROM plays
+     JOIN tracks  ON plays.track_id = tracks.id
+     JOIN albums  ON tracks.album_id = albums.id
+     JOIN artists ON albums.artist_id = artists.id
+     LEFT JOIN play_metadata ON play_metadata.timestamp = plays.timestamp AND play_metadata.track_id = plays.track_id
+     ${where}
+     ORDER BY plays.timestamp DESC
+     LIMIT ${count}`,
+  ).all(...params) as Array<{
+    timestamp: string;
+    track_title: string;
+    album_title: string;
+    artist_name: string;
+    source: string | null;
+    client: string | null;
+  }>;
+
+  return json({
+    payload: {
+      count: rows.length,
+      user_id: user.username,
+      listens: rows.map(formatListenBrainzListen),
+    },
+  });
+}
+
+function handleListenBrainzListenCount(db: Database, username: string): Response {
+  const user = getUserByUsername(db, username);
+  if (!user) return listenBrainzError("User not found.", 404);
+  const row = db.query(`SELECT COUNT(*) AS count FROM plays`).get() as { count: number } | null;
+  return json({ payload: { count: row?.count ?? 0 } });
+}
+
+function handleListenBrainzPlayingNow(db: Database, username: string): Response {
+  const user = getUserByUsername(db, username);
+  if (!user) return listenBrainzError("User not found.", 404);
+
+  const nowPlaying = getNowPlaying(db, user.id);
+  return json({
+    payload: {
+      count: nowPlaying ? 1 : 0,
+      user_id: user.username,
+      playing_now: !!nowPlaying,
+      listens: nowPlaying ? [formatListenBrainzPlayingNow(nowPlaying)] : [],
+    },
+  });
+}
+
 type Handler = (req: Request, url: URL, db: Database, match: RegExpMatchArray) => Promise<Response> | Response;
 
 interface Route {
@@ -501,7 +656,12 @@ get(/^\/health$/, (_req, _url, db) => {
   return json({
     ok: true,
     service: "scrobblevault",
-    version: "2.1.0",
+    version: "2.2.0",
+    supportedProtocols: {
+      lastfm: "/2.0/",
+      librefm: "/2.0/",
+      listenbrainz: "/1/",
+    },
     totalScrobbles: getOverviewStats(db).total_scrobbles,
     nowPlaying,
     timestamp: new Date().toISOString(),
@@ -1076,6 +1236,14 @@ get(/^\/api\/wrapped$/, (_req, url, db) => {
   const year = qpInt(url, "year", years[0]!);
   return json({ year, years, data: getWrappedYear(db, year) });
 });
+
+// ─── ListenBrainz-compatible layer ────────────────────────────────────────────
+
+get(/^\/1\/validate-token\/?$/, (req, _url, db) => handleListenBrainzValidateToken(req, db));
+post(/^\/1\/submit-listens\/?$/, (req, _url, db) => handleListenBrainzSubmit(req, db));
+get(/^\/1\/user\/([^/]+)\/listens\/?$/, (_req, url, db, match) => handleListenBrainzListens(url, db, decodeURIComponent(match[1] ?? "")));
+get(/^\/1\/user\/([^/]+)\/listen-count\/?$/, (_req, _url, db, match) => handleListenBrainzListenCount(db, decodeURIComponent(match[1] ?? "")));
+get(/^\/1\/user\/([^/]+)\/playing-now\/?$/, (_req, _url, db, match) => handleListenBrainzPlayingNow(db, decodeURIComponent(match[1] ?? "")));
 
 // ─── Last.fm-compatible compatibility layer ───────────────────────────────────
 

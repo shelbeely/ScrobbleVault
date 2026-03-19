@@ -793,8 +793,13 @@ export function renderSettings(
         <button type="submit" class="btn">Save &amp; Authenticate</button>
       </form>
       <div class="form-card" style="max-width:none;margin-top:1rem;background:#0f1117">
-        <h3 style="font-size:.9rem;color:#e2e8f0;margin-bottom:.4rem">Self-hosted backend</h3>
-        <p style="color:#94a3b8;font-size:.88rem;line-height:1.6">ScrobbleVault now exposes a Last.fm-compatible endpoint at <code>/2.0/</code> for apps like Panoscrobbler, and the same endpoint can also be added here as a third import source alongside Last.fm and Libre.fm.</p>
+        <h3 style="font-size:.9rem;color:#e2e8f0;margin-bottom:.4rem">Self-hosted backend protocol model</h3>
+        <p style="color:#94a3b8;font-size:.88rem;line-height:1.6;margin-bottom:.75rem">ScrobbleVault now exposes both a Last.fm-compatible endpoint at <code>/2.0/</code> and a ListenBrainz-compatible endpoint at <code>/1/</code>.</p>
+        <ul style="color:#94a3b8;font-size:.88rem;line-height:1.8;padding-left:1rem">
+          <li><strong style="color:#e2e8f0">Libre.fm</strong> → retro compatibility layer via the shared <code>/2.0/</code> protocol family</li>
+          <li><strong style="color:#e2e8f0">Last.fm</strong> → dominant but closed ecosystem, also represented by <code>/2.0/</code></li>
+          <li><strong style="color:#e2e8f0">ListenBrainz</strong> → future-proof open system via token-based <code>/1/</code> endpoints</li>
+        </ul>
       </div>
       <script>
         function updateNetworkHelp() {
