@@ -115,12 +115,43 @@ footer{background:#1a1d27;border-top:1px solid #2a2d3e;padding:.75rem 1.5rem;fon
 .consistency-ring{display:inline-flex;align-items:center;gap:.75rem;background:#0f1117;border:1px solid #2a2d3e;border-radius:.5rem;padding:.6rem 1rem;font-size:.85rem;color:#94a3b8}
 .consistency-ring .score{font-size:1.4rem;font-weight:700;color:#7c9ef8}
 .btn-sm{padding:.3rem .75rem !important;font-size:.75rem !important}
-@media(max-width:640px){.form-row{grid-template-columns:1fr}.stat-grid{grid-template-columns:1fr 1fr}.taste-compare{grid-template-columns:1fr}}
+/* ── Wrapped ── */
+.wrapped-hero{background:linear-gradient(135deg,#1a1d27 0%,#0f1117 60%,#1e1030 100%);border:1px solid #2a2d3e;border-radius:.75rem;padding:2rem;margin-bottom:1.5rem;position:relative;overflow:hidden}
+.wrapped-hero::before{content:'';position:absolute;top:-40px;right:-40px;width:200px;height:200px;background:radial-gradient(circle,#7c9ef822 0%,transparent 70%);pointer-events:none}
+.wrapped-year-nav{display:flex;align-items:center;gap:1rem;margin-bottom:1rem;flex-wrap:wrap}
+.wrapped-year-nav a,.wrapped-year-nav span{display:inline-block;padding:.35rem .9rem;border-radius:.375rem;font-size:.85rem;border:1px solid #2a2d3e;color:#94a3b8;text-decoration:none;transition:background .15s,color .15s}
+.wrapped-year-nav a:hover{background:#2a2d3e;color:#e2e8f0;text-decoration:none}
+.wrapped-year-nav .current-year{background:#7c9ef8;color:#0f1117;border-color:#7c9ef8;font-weight:700}
+.wrapped-big-num{font-size:clamp(2.5rem,6vw,4.5rem);font-weight:800;color:#e2e8f0;line-height:1;letter-spacing:-.03em}
+.wrapped-big-label{font-size:.9rem;color:#64748b;text-transform:uppercase;letter-spacing:.08em;margin-top:.25rem}
+.wrapped-hero-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:1.5rem;margin-top:1.5rem}
+.wrapped-section{background:#1a1d27;border:1px solid #2a2d3e;border-radius:.5rem;padding:1.25rem;margin-bottom:1.25rem}
+.wrapped-section-title{font-size:.75rem;text-transform:uppercase;letter-spacing:.07em;color:#64748b;margin-bottom:1rem;display:flex;align-items:center;gap:.4rem}
+.wrapped-rank-list{display:flex;flex-direction:column;gap:.6rem}
+.wrapped-rank-item{display:flex;align-items:center;gap:.75rem}
+.wrapped-rank-num{font-size:1.5rem;font-weight:800;color:#2a2d3e;min-width:1.8rem;text-align:right;line-height:1}
+.wrapped-rank-num.top1{color:#f8c97c}
+.wrapped-rank-num.top2{color:#94a3b8}
+.wrapped-rank-num.top3{color:#b87333}
+.wrapped-rank-bar-wrap{flex:1;min-width:0}
+.wrapped-rank-name{font-size:.9rem;font-weight:600;color:#e2e8f0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-bottom:.2rem}
+.wrapped-rank-sub{font-size:.75rem;color:#64748b}
+.wrapped-rank-bar{height:4px;border-radius:999px;background:#7c9ef8;margin-top:.25rem;transition:width .6s}
+.wrapped-rank-count{font-size:.85rem;font-weight:600;color:#94a3b8;white-space:nowrap}
+.wrapped-chart-bar{fill:#7c9ef8;transition:opacity .2s}
+.wrapped-chart-bar:hover{opacity:.7}
+.wrapped-milestone{background:#0f1117;border:1px solid #2a2d3e;border-radius:.5rem;padding:.75rem 1rem;display:flex;align-items:flex-start;gap:.75rem}
+.wrapped-milestone-icon{font-size:1.4rem;line-height:1;flex-shrink:0}
+.wrapped-milestone-text{font-size:.85rem;color:#94a3b8;line-height:1.5}
+.wrapped-milestone-text strong{color:#e2e8f0}
+.wrapped-milestones{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:.75rem;margin-bottom:1.25rem}
+@media(max-width:640px){.form-row{grid-template-columns:1fr}.stat-grid{grid-template-columns:1fr 1fr}.taste-compare{grid-template-columns:1fr}.wrapped-hero-grid{grid-template-columns:1fr 1fr}}
 `;
 
 function navHtml(active: string): string {
   const links = [
     ["/", "Brain", "🧠"],
+    ["/wrapped", "Wrapped", "🎁"],
     ["/universe", "Universe", "🌌"],
     ["/timeline", "Timeline", "📅"],
     ["/taste", "Taste DNA", "🧬"],
@@ -1159,4 +1190,203 @@ export function renderTaste(drift: {
     `}
   `;
   return layout({ title: "Taste DNA", active: "/taste", body });
+}
+
+// ─── Yearly Wrapped ───────────────────────────────────────────────────────────
+
+import type { WrappedYear } from "../queries";
+
+const MONTH_NAMES = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"] as const;
+
+function wrappedMonthChart(monthly_counts: number[]): string {
+  const max = Math.max(...monthly_counts, 1);
+  const W = 360, H = 80, BAR_W = 24, GAP = 6;
+  const bars = monthly_counts.map((n, i) => {
+    const barH = Math.max(2, Math.round((n / max) * (H - 20)));
+    const x    = i * (BAR_W + GAP);
+    const y    = H - 20 - barH;
+    return `<rect class="wrapped-chart-bar" x="${x}" y="${y}" width="${BAR_W}" height="${barH}" rx="3">
+      <title>${MONTH_NAMES[i]}: ${n.toLocaleString()} plays</title></rect>
+      <text x="${x + BAR_W / 2}" y="${H - 4}" text-anchor="middle" font-size="9" fill="#475569">${MONTH_NAMES[i]}</text>`;
+  }).join("");
+  return `<svg viewBox="0 0 ${(BAR_W + GAP) * 12 - GAP} ${H}" style="width:100%;max-width:${W}px;display:block">${bars}</svg>`;
+}
+
+function rankNum(i: number): string {
+  const cls = i === 0 ? "top1" : i === 1 ? "top2" : i === 2 ? "top3" : "";
+  return `<span class="wrapped-rank-num${cls ? " " + cls : ""}">${i + 1}</span>`;
+}
+
+export function renderWrapped(
+  data: WrappedYear | null,
+  year: number,
+  availableYears: number[],
+): string {
+  const yearNav = availableYears.map(y =>
+    y === year
+      ? `<span class="current-year">${y}</span>`
+      : `<a href="/wrapped?year=${y}">${y}</a>`,
+  ).join("");
+
+  if (!data || year === 0) {
+    const body = `
+      <h1 class="page-title"><span class="icon">🎁</span> Wrapped</h1>
+      ${yearNav ? `<div class="wrapped-year-nav">${yearNav}</div>` : ""}
+      <div class="empty" style="padding:3rem">
+        <div class="icon">🎵</div>
+        <p>${availableYears.length > 0
+          ? `No scrobble data for ${year}. <a href="/wrapped?year=${availableYears[0]}">See ${availableYears[0]}</a>`
+          : `No scrobble history yet. <a href="/ingest">Import your history to get started.</a>`
+        }</p>
+      </div>`;
+    const titleYear = year > 0 ? `${year} ` : "";
+    return layout({ title: `${titleYear}Wrapped`, active: "/wrapped", body });
+  }
+
+  const maxArtist = data.top_artists[0]?.play_count || 1;
+  const maxTrack  = data.top_tracks[0]?.play_count  || 1;
+  const maxAlbum  = data.top_albums[0]?.play_count  || 1;
+
+  const artistRows = data.top_artists.map((a, i) => `
+    <div class="wrapped-rank-item">
+      ${rankNum(i)}
+      <div class="wrapped-rank-bar-wrap">
+        <div class="wrapped-rank-name"><a href="/artists/${encodeURIComponent(a.artist_id)}" style="color:inherit">${escHtml(a.artist_name)}</a></div>
+        <div class="wrapped-rank-bar" style="width:${Math.round((a.play_count / maxArtist) * 100)}%"></div>
+      </div>
+      <span class="wrapped-rank-count">${fmtNum(a.play_count)}</span>
+    </div>`).join("");
+
+  const trackRows = data.top_tracks.map((t, i) => `
+    <div class="wrapped-rank-item">
+      ${rankNum(i)}
+      <div class="wrapped-rank-bar-wrap">
+        <div class="wrapped-rank-name"><a href="/tracks/${encodeURIComponent(t.track_id)}" style="color:inherit">${escHtml(t.track_title)}</a></div>
+        <div class="wrapped-rank-sub">${escHtml(t.artist_name)}</div>
+        <div class="wrapped-rank-bar" style="width:${Math.round((t.play_count / maxTrack) * 100)}%"></div>
+      </div>
+      <span class="wrapped-rank-count">${fmtNum(t.play_count)}</span>
+    </div>`).join("");
+
+  const albumRows = data.top_albums.map((a, i) => `
+    <div class="wrapped-rank-item">
+      ${rankNum(i)}
+      <div class="wrapped-rank-bar-wrap">
+        <div class="wrapped-rank-name"><a href="/albums/${encodeURIComponent(a.album_id)}" style="color:inherit">${escHtml(a.album_title)}</a></div>
+        <div class="wrapped-rank-sub">${escHtml(a.artist_name)}</div>
+        <div class="wrapped-rank-bar" style="width:${Math.round((a.play_count / maxAlbum) * 100)}%"></div>
+      </div>
+      <span class="wrapped-rank-count">${fmtNum(a.play_count)}</span>
+    </div>`).join("");
+
+  // Peak day label — peak_day_date is already YYYY-MM-DD from strftime, safe to parse directly
+  const peakDayLabel = data.peak_day_date
+    ? fmtDate(data.peak_day_date)
+    : "—";
+
+  // Most active month name — clamp to valid range 1-12
+  const safeMonth    = Math.min(12, Math.max(1, data.most_active_month));
+  const activeMonthName = MONTH_NAMES[safeMonth - 1] ?? "—";
+
+  // Listening days %
+  const daysInYear = (year % 4 === 0 && (year % 100 !== 0 || year % 400 === 0)) ? 366 : 365;
+  const activePct  = Math.round((data.active_days / daysInYear) * 100);
+
+  // Avg daily plays
+  const avgDaily = data.active_days > 0
+    ? Math.round(data.total_scrobbles / data.active_days)
+    : 0;
+
+  // First/last scrobble nicely formatted
+  const firstDate = data.first_scrobble ? fmtDate(data.first_scrobble) : "—";
+  const lastDate  = data.last_scrobble  ? fmtDate(data.last_scrobble)  : "—";
+
+  const body = `
+    <h1 class="page-title"><span class="icon">🎁</span> Wrapped</h1>
+
+    <div class="wrapped-year-nav">${yearNav}</div>
+
+    <div class="wrapped-hero">
+      <div style="font-size:.8rem;color:#64748b;text-transform:uppercase;letter-spacing:.1em;margin-bottom:.5rem">Your ${year} in Music</div>
+      <div class="wrapped-big-num">${fmtNum(data.total_scrobbles)}</div>
+      <div class="wrapped-big-label">scrobbles</div>
+      <div class="wrapped-hero-grid">
+        <div><div style="font-size:1.6rem;font-weight:700;color:#7c9ef8">${fmtNum(data.unique_artists)}</div><div style="font-size:.75rem;color:#64748b;text-transform:uppercase;letter-spacing:.06em">Artists</div></div>
+        <div><div style="font-size:1.6rem;font-weight:700;color:#f87c9e">${fmtNum(data.unique_albums)}</div><div style="font-size:.75rem;color:#64748b;text-transform:uppercase;letter-spacing:.06em">Albums</div></div>
+        <div><div style="font-size:1.6rem;font-weight:700;color:#9ef87c">${fmtNum(data.unique_tracks)}</div><div style="font-size:.75rem;color:#64748b;text-transform:uppercase;letter-spacing:.06em">Tracks</div></div>
+        <div><div style="font-size:1.6rem;font-weight:700;color:#f8c97c">${fmtNum(data.active_days)}</div><div style="font-size:.75rem;color:#64748b;text-transform:uppercase;letter-spacing:.06em">Listening Days</div></div>
+        <div><div style="font-size:1.6rem;font-weight:700;color:#c47cf8">${fmtNum(data.new_artists_count)}</div><div style="font-size:.75rem;color:#64748b;text-transform:uppercase;letter-spacing:.06em">New Discoveries</div></div>
+      </div>
+    </div>
+
+    <div class="wrapped-milestones">
+      <div class="wrapped-milestone">
+        <div class="wrapped-milestone-icon">🔥</div>
+        <div class="wrapped-milestone-text">
+          Peak day: <strong>${peakDayLabel}</strong><br>
+          <strong>${fmtNum(data.peak_day_count)}</strong> plays in one day
+        </div>
+      </div>
+      <div class="wrapped-milestone">
+        <div class="wrapped-milestone-icon">📅</div>
+        <div class="wrapped-milestone-text">
+          Most active month: <strong>${activeMonthName}</strong><br>
+          <strong>${fmtNum(data.most_active_month_count)}</strong> plays
+        </div>
+      </div>
+      <div class="wrapped-milestone">
+        <div class="wrapped-milestone-icon">📊</div>
+        <div class="wrapped-milestone-text">
+          You listened on <strong>${activePct}%</strong> of all days<br>
+          avg <strong>${fmtNum(avgDaily)}</strong> plays on active days
+        </div>
+      </div>
+      <div class="wrapped-milestone">
+        <div class="wrapped-milestone-icon">✨</div>
+        <div class="wrapped-milestone-text">
+          Discovered <strong>${fmtNum(data.new_artists_count)}</strong> artists for the first time<br>
+          <span style="color:#475569">${firstDate} → ${lastDate}</span>
+        </div>
+      </div>
+    </div>
+
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:1.25rem;margin-bottom:1.25rem">
+      <div class="wrapped-section">
+        <div class="wrapped-section-title">🎤 Top Artists</div>
+        <div class="wrapped-rank-list">
+          ${artistRows || `<p style="color:#475569;font-size:.85rem">No artist data.</p>`}
+        </div>
+      </div>
+      <div class="wrapped-section">
+        <div class="wrapped-section-title">🎼 Top Tracks</div>
+        <div class="wrapped-rank-list">
+          ${trackRows || `<p style="color:#475569;font-size:.85rem">No track data.</p>`}
+        </div>
+      </div>
+      <div class="wrapped-section">
+        <div class="wrapped-section-title">💿 Top Albums</div>
+        <div class="wrapped-rank-list">
+          ${albumRows || `<p style="color:#475569;font-size:.85rem">No album data.</p>`}
+        </div>
+      </div>
+    </div>
+
+    <div class="wrapped-section">
+      <div class="wrapped-section-title">📈 Monthly Breakdown</div>
+      ${wrappedMonthChart(data.monthly_counts)}
+      <div style="display:flex;flex-wrap:wrap;gap:.5rem;margin-top:.75rem">
+        ${data.monthly_counts.map((n, i) => `<span style="font-size:.75rem;color:${n === data.most_active_month_count ? "#7c9ef8" : "#475569"};font-weight:${n === data.most_active_month_count ? "700" : "400"}">${MONTH_NAMES[i]}: ${n.toLocaleString()}</span>`).join(" · ")}
+      </div>
+    </div>
+
+    <div style="display:flex;gap:.75rem;flex-wrap:wrap;margin-top:1rem">
+      <a href="/timeline" class="btn btn-outline">📅 Full Timeline</a>
+      <a href="/taste" class="btn btn-outline">🧬 Taste DNA</a>
+      <a href="/universe" class="btn btn-outline">🌌 Artist Universe</a>
+      ${availableYears.filter(y => y !== year).slice(0, 3).map(y =>
+        `<a href="/wrapped?year=${y}" class="btn btn-outline">🎁 ${y} Wrapped</a>`
+      ).join("")}
+    </div>
+  `;
+  return layout({ title: `${year} Wrapped`, active: "/wrapped", body });
 }

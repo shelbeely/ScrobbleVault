@@ -23,6 +23,8 @@ import {
   getDailyHeatmap,
   getArtistGraph,
   getTasteDrift,
+  getWrappedYears,
+  getWrappedYear,
 } from "../queries";
 import { initSchema, setupFts5, upsertBatch, getLatestTimestamp } from "../db";
 import { recentTracks, getRecentTracksCount } from "../lastfm";
@@ -44,6 +46,7 @@ import {
   renderUniverse,
   renderTimeline,
   renderTaste,
+  renderWrapped,
 } from "./templates";
 
 const PAGE_SIZE = 50;
@@ -502,4 +505,23 @@ get(/^\/taste$/, (_req, _url, db) => {
 
 get(/^\/api\/taste$/, (_req, _url, db) => {
   return json(getTasteDrift(db));
+});
+
+// ─── Yearly Wrapped ───────────────────────────────────────────────────────────
+
+get(/^\/wrapped$/, (_req, url, db) => {
+  const years = getWrappedYears(db);
+  if (years.length === 0) {
+    // No scrobble data at all — render empty state with no year selected
+    return html(renderWrapped(null, 0, []));
+  }
+  const year = qpInt(url, "year", years[0]!);
+  return html(renderWrapped(getWrappedYear(db, year), year, years));
+});
+
+get(/^\/api\/wrapped$/, (_req, url, db) => {
+  const years = getWrappedYears(db);
+  if (years.length === 0) return json({ year: null, years: [], data: null });
+  const year = qpInt(url, "year", years[0]!);
+  return json({ year, years, data: getWrappedYear(db, year) });
 });

@@ -886,3 +886,196 @@ export function getTasteDrift(db: Database): TasteDrift {
     drift_direction:  driftDirection,
   };
 }
+
+// ─── Yearly Wrapped ───────────────────────────────────────────────────────────
+
+export interface WrappedArtist {
+  artist_id: string;
+  artist_name: string;
+  play_count: number;
+}
+
+export interface WrappedTrack {
+  track_id: string;
+  track_title: string;
+  artist_name: string;
+  play_count: number;
+}
+
+export interface WrappedAlbum {
+  album_id: string;
+  album_title: string;
+  artist_name: string;
+  play_count: number;
+}
+
+export interface WrappedYear {
+  year: number;
+  total_scrobbles: number;
+  unique_artists: number;
+  unique_albums: number;
+  unique_tracks: number;
+  first_scrobble: string | null;
+  last_scrobble: string | null;
+  /** Most active month (1-12) */
+  most_active_month: number;
+  most_active_month_count: number;
+  /** Date (YYYY-MM-DD) of the single most-active day */
+  peak_day_date: string | null;
+  peak_day_count: number;
+  /** Artists heard for the first time ever this year */
+  new_artists_count: number;
+  /** Total listening days in the year */
+  active_days: number;
+  top_artists: WrappedArtist[];
+  top_tracks: WrappedTrack[];
+  top_albums: WrappedAlbum[];
+  /** Play counts by month, index 0 = Jan … 11 = Dec */
+  monthly_counts: number[];
+}
+
+/** Returns the list of years that have scrobble data, newest first. */
+export function getWrappedYears(db: Database): number[] {
+  const rows = db
+    .query(
+      `SELECT DISTINCT CAST(strftime('%Y', timestamp) AS INTEGER) AS yr
+       FROM plays ORDER BY yr DESC`,
+    )
+    .all() as { yr: number }[];
+  return rows.map(r => r.yr);
+}
+
+export function getWrappedYear(db: Database, year: number): WrappedYear | null {
+  const yStart = `${year}-01-01T00:00:00.000Z`;
+  const yEnd   = `${year}-12-31T23:59:59.999Z`;
+
+  // Basic counts
+  const counts = db
+    .query(
+      `SELECT
+         COUNT(*)                          AS total_scrobbles,
+         COUNT(DISTINCT artists.id)        AS unique_artists,
+         COUNT(DISTINCT albums.id)         AS unique_albums,
+         COUNT(DISTINCT tracks.id)         AS unique_tracks,
+         MIN(plays.timestamp)              AS first_scrobble,
+         MAX(plays.timestamp)              AS last_scrobble
+       FROM plays
+       JOIN tracks  ON plays.track_id  = tracks.id
+       JOIN albums  ON tracks.album_id = albums.id
+       JOIN artists ON albums.artist_id = artists.id
+       WHERE plays.timestamp >= ? AND plays.timestamp <= ?`,
+    )
+    .get(yStart, yEnd) as {
+      total_scrobbles: number;
+      unique_artists: number;
+      unique_albums: number;
+      unique_tracks: number;
+      first_scrobble: string | null;
+      last_scrobble: string | null;
+    } | null;
+
+  if (!counts || counts.total_scrobbles === 0) return null;
+
+  // Monthly breakdown
+  const monthRows = db
+    .query(
+      `SELECT CAST(strftime('%m', timestamp) AS INTEGER) AS m, COUNT(*) AS n
+       FROM plays WHERE timestamp >= ? AND timestamp <= ?
+       GROUP BY m`,
+    )
+    .all(yStart, yEnd) as { m: number; n: number }[];
+
+  const monthly_counts = Array(12).fill(0) as number[];
+  for (const r of monthRows) monthly_counts[(r.m - 1)] = r.n;
+
+  const most_active_month     = (monthly_counts.indexOf(Math.max(...monthly_counts)) + 1) || 1;
+  const most_active_month_count = monthly_counts[most_active_month - 1] ?? 0;
+
+  // Peak day
+  const peakDay = db
+    .query(
+      `SELECT strftime('%Y-%m-%d', timestamp) AS day, COUNT(*) AS n
+       FROM plays WHERE timestamp >= ? AND timestamp <= ?
+       GROUP BY day ORDER BY n DESC LIMIT 1`,
+    )
+    .get(yStart, yEnd) as { day: string; n: number } | null;
+
+  // Active days
+  const activeDaysRow = db
+    .query(
+      `SELECT COUNT(DISTINCT strftime('%Y-%m-%d', timestamp)) AS n
+       FROM plays WHERE timestamp >= ? AND timestamp <= ?`,
+    )
+    .get(yStart, yEnd) as { n: number };
+
+  // New artists — heard this year but never before
+  const newArtistsRow = db
+    .query(
+      `SELECT COUNT(*) AS n FROM (
+         SELECT albums.artist_id
+         FROM plays
+         JOIN tracks  ON plays.track_id  = tracks.id
+         JOIN albums  ON tracks.album_id = albums.id
+         WHERE plays.timestamp >= ? AND plays.timestamp <= ?
+         GROUP BY albums.artist_id
+         HAVING MIN(plays.timestamp) >= ?
+       )`,
+    )
+    .get(yStart, yEnd, yStart) as { n: number };
+
+  // Top 5 artists
+  const top_artists = db
+    .query(
+      `SELECT artists.id AS artist_id, artists.name AS artist_name, COUNT(*) AS play_count
+       FROM plays
+       JOIN tracks  ON plays.track_id  = tracks.id
+       JOIN albums  ON tracks.album_id = albums.id
+       JOIN artists ON albums.artist_id = artists.id
+       WHERE plays.timestamp >= ? AND plays.timestamp <= ?
+       GROUP BY artists.id ORDER BY play_count DESC LIMIT 5`,
+    )
+    .all(yStart, yEnd) as WrappedArtist[];
+
+  // Top 5 tracks
+  const top_tracks = db
+    .query(
+      `SELECT tracks.id AS track_id, tracks.title AS track_title,
+              artists.name AS artist_name, COUNT(*) AS play_count
+       FROM plays
+       JOIN tracks  ON plays.track_id  = tracks.id
+       JOIN albums  ON tracks.album_id = albums.id
+       JOIN artists ON albums.artist_id = artists.id
+       WHERE plays.timestamp >= ? AND plays.timestamp <= ?
+       GROUP BY tracks.id ORDER BY play_count DESC LIMIT 5`,
+    )
+    .all(yStart, yEnd) as WrappedTrack[];
+
+  // Top 5 albums
+  const top_albums = db
+    .query(
+      `SELECT albums.id AS album_id, albums.title AS album_title,
+              artists.name AS artist_name, COUNT(*) AS play_count
+       FROM plays
+       JOIN tracks  ON plays.track_id  = tracks.id
+       JOIN albums  ON tracks.album_id = albums.id
+       JOIN artists ON albums.artist_id = artists.id
+       WHERE plays.timestamp >= ? AND plays.timestamp <= ?
+       GROUP BY albums.id ORDER BY play_count DESC LIMIT 5`,
+    )
+    .all(yStart, yEnd) as WrappedAlbum[];
+
+  return {
+    year,
+    ...counts,
+    most_active_month,
+    most_active_month_count,
+    peak_day_date:  peakDay?.day  ?? null,
+    peak_day_count: peakDay?.n    ?? 0,
+    new_artists_count: newArtistsRow?.n ?? 0,
+    active_days:    activeDaysRow?.n ?? 0,
+    top_artists,
+    top_tracks,
+    top_albums,
+    monthly_counts,
+  };
+}
