@@ -114,6 +114,7 @@ footer{background:#1a1d27;border-top:1px solid #2a2d3e;padding:.75rem 1.5rem;fon
 .era-label{font-size:1.4rem;font-weight:700;color:#a5bbff;margin-bottom:.35rem}
 .consistency-ring{display:inline-flex;align-items:center;gap:.75rem;background:#0f1117;border:1px solid #2a2d3e;border-radius:.5rem;padding:.6rem 1rem;font-size:.85rem;color:#94a3b8}
 .consistency-ring .score{font-size:1.4rem;font-weight:700;color:#7c9ef8}
+.btn-sm{padding:.3rem .75rem !important;font-size:.75rem !important}
 @media(max-width:640px){.form-row{grid-template-columns:1fr}.stat-grid{grid-template-columns:1fr 1fr}.taste-compare{grid-template-columns:1fr}}
 `;
 
@@ -743,9 +744,11 @@ export function renderUniverse(graphJson: string, nodeCount: number, edgeCount: 
     </p>
     <div style="display:flex;gap:.5rem;flex-wrap:wrap;margin-bottom:.75rem;font-size:.8rem;align-items:center">
       <span style="color:#64748b">Highlight:</span>
-      <button id="btn-core" class="btn btn-outline" style="padding:.3rem .75rem;font-size:.75rem">★ Core artists</button>
-      <button id="btn-forgotten" class="btn btn-outline" style="padding:.3rem .75rem;font-size:.75rem">⚠ Forgotten artists</button>
-      <button id="btn-reset" class="btn" style="padding:.3rem .75rem;font-size:.75rem;background:#2a2d3e;color:#94a3b8">Reset</button>
+      <button id="btn-core" class="btn btn-outline btn-sm">★ Core Identity</button>
+      <button id="btn-sidequests" class="btn btn-outline btn-sm">🌙 Side Quests</button>
+      <button id="btn-forgotten" class="btn btn-outline btn-sm">⚠ Forgotten</button>
+      <button id="btn-bridges" class="btn btn-outline btn-sm">🌉 Bridges</button>
+      <button id="btn-reset" class="btn btn-sm" style="background:#2a2d3e;color:#94a3b8">Reset</button>
       <label style="color:#64748b;margin-left:.5rem">Zoom: <input type="range" id="zoom-slider" min="0.2" max="4" step="0.1" value="1" style="width:80px;vertical-align:middle"></label>
     </div>
     <div id="universe-wrap">
@@ -754,13 +757,18 @@ export function renderUniverse(graphJson: string, nodeCount: number, edgeCount: 
     </div>
     <div class="universe-legend" id="universe-legend"></div>
     <p style="color:#475569;font-size:.75rem;margin-top:.6rem">
-      ★ white ring = core identity artists &nbsp;·&nbsp; faded = forgotten artists (not played in 6+ months) &nbsp;·&nbsp; drag nodes to rearrange &nbsp;·&nbsp; scroll to zoom
+      ★ white ring = core identity artists &nbsp;·&nbsp;
+      🌉 gold ring = bridge artists (genre overlaps) &nbsp;·&nbsp;
+      faded = forgotten artists (not played in 6+ months) &nbsp;·&nbsp;
+      drag nodes · scroll to zoom
     </p>
+    <div id="cluster-summary" style="margin-top:.75rem;display:flex;flex-wrap:wrap;gap:.5rem"></div>
 
     <script src="https://cdn.jsdelivr.net/npm/d3@7/dist/d3.min.js" integrity="sha384-CjloA8y00+1SDAUkjs099PVfnY2KmDC2BZnws9kh8D/lX1s46w6EPhpXdqMfjK6i" crossorigin="anonymous"></script>
     <script>
     (function() {
       const COLORS = ['#7c9ef8','#f87c9e','#9ef87c','#f8c97c','#c47cf8','#7cf8e6','#f87c7c','#f8f07c','#f89e7c','#7ca8f8'];
+      const BRIDGE_COLOR = '#f8c97c'; // gold — bridge artists that connect clusters
       let zoomBehavior, svgSel, currentTransform = d3.zoomIdentity;
 
       function init() {
@@ -798,8 +806,15 @@ export function renderUniverse(graphJson: string, nodeCount: number, edgeCount: 
         const linkG = g.append('g').attr('class','links');
         const nodeG = g.append('g').attr('class','nodes');
 
+        // Bridge edges: colour cross-cluster edges differently
         const link = linkG.selectAll('line').data(edges).join('line')
-          .attr('stroke','#2a2d3e').attr('stroke-opacity', e => Math.min(0.9, 0.2 + e.weight/20))
+          .attr('stroke', e => {
+            // Detect if source/target are in different clusters (bridge edge)
+            const sn = nodes.find(n => n.id === (e.source.id || e.source));
+            const tn = nodes.find(n => n.id === (e.target.id || e.target));
+            return (sn && tn && sn.cluster !== tn.cluster) ? BRIDGE_COLOR + '33' : '#2a2d3e';
+          })
+          .attr('stroke-opacity', e => Math.min(0.9, 0.2 + e.weight/20))
           .attr('stroke-width', e => Math.max(0.5, Math.sqrt(e.weight)));
 
         const node = nodeG.selectAll('g').data(nodes).join('g').style('cursor','pointer')
@@ -808,13 +823,22 @@ export function renderUniverse(graphJson: string, nodeCount: number, edgeCount: 
             .on('drag',  (e,d) => { d.fx=e.x; d.fy=e.y; })
             .on('end',   (e,d) => { if(!e.active) sim.alphaTarget(0); d.fx=null; d.fy=null; }));
 
+        // Outer glow ring for bridge artists (gold)
+        node.filter(d => d.is_bridge).append('circle')
+          .attr('r', d => r(d) + 5)
+          .attr('fill', 'none')
+          .attr('stroke', BRIDGE_COLOR)
+          .attr('stroke-width', 1.5)
+          .attr('stroke-dasharray', '4,3')
+          .attr('opacity', 0.6)
+          .attr('class', 'bridge-ring');
+
         node.append('circle')
           .attr('r', r)
-          .attr('fill', d => COLORS[d.cluster % COLORS.length])
+          .attr('fill', d => COLORS[d.cluster % COLORS.length] ?? '#7c9ef8')
           .attr('opacity', d => d.is_forgotten ? 0.3 : 0.9)
           .attr('stroke', d => d.is_core ? '#fff' : 'none')
-          .attr('stroke-width', d => d.is_core ? 2 : 0)
-          .attr('stroke-dasharray', d => d.is_forgotten ? '3,2' : 'none');
+          .attr('stroke-width', d => d.is_core ? 2 : 0);
 
         // Label for large nodes only
         node.filter(d => d.play_count >= maxPlays * 0.1).append('text')
@@ -828,12 +852,16 @@ export function renderUniverse(graphJson: string, nodeCount: number, edgeCount: 
         const tip = document.getElementById('universe-tooltip');
         node.on('mouseover', (e, d) => {
           tip.style.display = 'block';
+          const roleLabel = d.cluster_role === 'core'
+            ? '<br><span style="color:#7c9ef8">★ Core identity cluster</span>'
+            : '<br><span style="color:#c47cf8">🌙 Side quest cluster</span>';
           tip.innerHTML = '<strong style="color:#e2e8f0">' + d.name + '</strong><br>'
             + d.play_count.toLocaleString() + ' plays<br>'
             + 'First heard: ' + (d.first_heard ? d.first_heard.slice(0,10) : '?') + '<br>'
             + 'Last played: ' + (d.last_played ? d.last_played.slice(0,10) : '?')
-            + (d.is_forgotten ? '<br><span style="color:#fb923c">⚠ Forgotten artist</span>' : '')
-            + (d.is_core     ? '<br><span style="color:#f8c97c">★ Core identity artist</span>' : '');
+            + roleLabel
+            + (d.is_forgotten ? '<br><span style="color:#fb923c">⚠ Forgotten artist — you used to love them</span>' : '')
+            + (d.is_bridge    ? '<br><span style="color:' + BRIDGE_COLOR + '">🌉 Bridge artist — connects your genres</span>' : '');
           moveTip(e);
         }).on('mousemove', moveTip).on('mouseout', () => { tip.style.display = 'none'; });
 
@@ -848,6 +876,22 @@ export function renderUniverse(graphJson: string, nodeCount: number, edgeCount: 
           node.attr('transform',d=>'translate('+d.x+','+d.y+')');
         });
 
+        // ── Cluster summary panel ──────────────────────────────────────────────
+        const clusterInfo = {};
+        nodes.forEach(n => {
+          if (!clusterInfo[n.cluster]) clusterInfo[n.cluster] = { name: n.name, role: n.cluster_role, topName: n.name, plays: 0, count: 0 };
+          clusterInfo[n.cluster].plays += n.play_count;
+          clusterInfo[n.cluster].count++;
+        });
+        const summary = document.getElementById('cluster-summary');
+        Object.entries(clusterInfo).slice(0,8).forEach(([ci, info]) => {
+          const c    = COLORS[+ci % COLORS.length];
+          const icon = info.role === 'core' ? '★' : '🌙';
+          const tag  = info.role === 'core' ? 'Core Identity' : 'Side Quest';
+          summary.innerHTML += '<span style="background:' + c + '22;color:' + c + ';border:1px solid ' + c + '44;padding:.3rem .75rem;border-radius:999px;font-size:.75rem;font-weight:600">'
+            + icon + ' ' + tag + ': ' + info.topName + ' cluster (' + info.count + ' artists)</span>';
+        });
+
         // Legend: unique clusters
         const clusterNames = {};
         nodes.forEach(n => { if(!clusterNames[n.cluster]) clusterNames[n.cluster] = n.name; });
@@ -859,13 +903,25 @@ export function renderUniverse(graphJson: string, nodeCount: number, edgeCount: 
 
         // Controls
         document.getElementById('btn-core').onclick = () => {
-          node.selectAll('circle').attr('opacity', d => d.is_core ? 0.95 : 0.15);
+          node.selectAll('circle:not(.bridge-ring)').attr('opacity', d => d.cluster_role === 'core' ? 0.95 : 0.12);
+        };
+        document.getElementById('btn-sidequests').onclick = () => {
+          node.selectAll('circle:not(.bridge-ring)').attr('opacity', d => d.cluster_role === 'side_quest' ? 0.95 : 0.12);
         };
         document.getElementById('btn-forgotten').onclick = () => {
-          node.selectAll('circle').attr('opacity', d => d.is_forgotten ? 0.95 : 0.15);
+          node.selectAll('circle:not(.bridge-ring)').attr('opacity', d => d.is_forgotten ? 0.95 : 0.12);
+        };
+        document.getElementById('btn-bridges').onclick = () => {
+          node.selectAll('circle:not(.bridge-ring)').attr('opacity', d => d.is_bridge ? 0.95 : 0.12);
+          link.attr('stroke-opacity', e => {
+            const sn = nodes.find(n => n.id === (e.source.id || e.source));
+            const tn = nodes.find(n => n.id === (e.target.id || e.target));
+            return (sn && tn && sn.cluster !== tn.cluster) ? 0.9 : 0.05;
+          });
         };
         document.getElementById('btn-reset').onclick = () => {
-          node.selectAll('circle').attr('opacity', d => d.is_forgotten ? 0.3 : 0.9);
+          node.selectAll('circle:not(.bridge-ring)').attr('opacity', d => d.is_forgotten ? 0.3 : 0.9);
+          link.attr('stroke-opacity', e => Math.min(0.9, 0.2 + e.weight/20));
         };
         document.getElementById('zoom-slider').oninput = function() {
           const t = d3.zoomIdentity.translate(currentTransform.x, currentTransform.y).scale(+this.value);
@@ -992,11 +1048,14 @@ export function renderTimeline(heatmapJson: string): string {
 
 export function renderTaste(drift: {
   era_label: string;
+  snapshot_label: string;
   current_top: { name: string; plays: number }[];
   year_ago_top: { name: string; plays: number }[];
   new_artists: string[];
   drifted_away: string[];
   consistency_score: number;
+  drift_magnitude: number;
+  drift_direction: "anchored" | "exploring" | "pivoting";
 }): string {
   const maxCur  = drift.current_top[0]?.plays  || 1;
   const maxPast = drift.year_ago_top[0]?.plays || 1;
@@ -1011,6 +1070,18 @@ export function renderTaste(drift: {
     drift.consistency_score > 70 ? "#4ade80" :
     drift.consistency_score > 40 ? "#f8c97c" : "#f87c7c";
 
+  const driftColor =
+    drift.drift_magnitude < 30 ? "#4ade80" :
+    drift.drift_magnitude < 65 ? "#f8c97c" : "#f87c7c";
+
+  const directionIcon =
+    drift.drift_direction === "anchored"  ? "⚓" :
+    drift.drift_direction === "exploring" ? "🧭" : "🔀";
+  const directionLabel =
+    drift.drift_direction === "anchored"  ? "Anchored — same artists as last year" :
+    drift.drift_direction === "exploring" ? "Exploring — mixing old faves with new sounds" :
+                                            "Pivoting — completely different taste this month";
+
   const newChips   = drift.new_artists.slice(0, 8).map(a => `<span class="drift-chip drift-new">+ ${escHtml(a)}</span>`).join("");
   const awayChips  = drift.drifted_away.slice(0, 8).map(a => `<span class="drift-chip drift-away">− ${escHtml(a)}</span>`).join("");
 
@@ -1021,10 +1092,15 @@ export function renderTaste(drift: {
     <h1 class="page-title"><span class="icon">🧬</span> Taste DNA</h1>
 
     ${!hasData ? noDataMsg : `
-    <div class="era-card">
-      <div style="font-size:.75rem;color:#94a3b8;text-transform:uppercase;letter-spacing:.06em;margin-bottom:.3rem">You are currently in your…</div>
-      <div class="era-label">${escHtml(drift.era_label)}</div>
-      <div style="margin-top:.75rem;display:flex;align-items:center;gap:1rem;flex-wrap:wrap">
+
+    <div class="era-card" style="margin-bottom:1rem">
+      <div style="font-size:.7rem;color:#94a3b8;text-transform:uppercase;letter-spacing:.08em;margin-bottom:.5rem">📸 Identity Snapshot</div>
+      <div class="era-label" style="font-size:1.3rem">${escHtml(drift.snapshot_label)}</div>
+      <div style="margin-top:.5rem;font-size:.85rem;color:#7c9ef8;font-style:italic">${escHtml(drift.era_label)}</div>
+    </div>
+
+    <div style="background:#1a1d27;border:1px solid #2a2d3e;border-radius:.5rem;padding:1rem;margin-bottom:1.25rem">
+      <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:.75rem">
         <div class="consistency-ring">
           <div>
             <div class="score" style="color:${scoreColor}">${drift.consistency_score}%</div>
@@ -1035,6 +1111,17 @@ export function renderTaste(drift: {
               drift.consistency_score > 40 ? "A healthy mix of old faves & new sounds" :
               "Your taste has shifted a lot this month 🔄"}
           </div>
+        </div>
+
+        <div style="flex:1;min-width:200px">
+          <div style="font-size:.75rem;color:#64748b;margin-bottom:.4rem;display:flex;justify-content:space-between">
+            <span>Taste Drift Meter</span>
+            <span style="color:${driftColor}">${drift.drift_magnitude}% drifted</span>
+          </div>
+          <div style="background:#0f1117;border-radius:999px;height:10px;overflow:hidden;border:1px solid #2a2d3e">
+            <div style="height:10px;border-radius:999px;background:linear-gradient(90deg,#4ade80,#f8c97c,#f87c7c);width:${drift.drift_magnitude}%;transition:width .6s"></div>
+          </div>
+          <div style="margin-top:.4rem;font-size:.8rem;color:#94a3b8">${directionIcon} ${escHtml(directionLabel)}</div>
         </div>
       </div>
     </div>
@@ -1065,7 +1152,7 @@ export function renderTaste(drift: {
     <div style="background:#1a1d27;border:1px solid #2a2d3e;border-radius:.5rem;padding:1rem;margin-top:.5rem">
       <p style="font-size:.8rem;color:#64748b">
         💡 <strong style="color:#94a3b8">How this works:</strong> Taste DNA compares your top 10 artists over the last 30 days vs. the same 30-day window one year ago.
-        Consistency score = overlap between the two lists.
+        Drift meter = % of your current top-10 that wasn't in your top-10 a year ago.
         <a href="/universe" style="color:#7c9ef8">Explore the Universe Map</a> to see how your artists cluster and connect.
       </p>
     </div>

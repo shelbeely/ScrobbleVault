@@ -620,7 +620,9 @@ export interface GraphNode {
   last_played: string | null;
   is_core: boolean;
   is_forgotten: boolean;
+  is_bridge: boolean;
   cluster: number;
+  cluster_role: "core" | "side_quest";
 }
 
 export interface GraphEdge {
@@ -712,12 +714,43 @@ export function getArtistGraph(db: Database, limit = 80): ArtistGraph {
   const medianPlays = sorted[Math.floor(sorted.length / 2)]?.play_count ?? 0;
   const cutoff180   = new Date(Date.now() - 180 * 86_400_000).toISOString();
 
-  const nodes: GraphNode[] = raw.map(n => ({
-    ...n,
-    is_core:      n.play_count >= coreThresh,
-    is_forgotten: !!n.last_played && n.last_played < cutoff180 && n.play_count > medianPlays,
-    cluster:      clusterMap.get(find(n.id)) ?? 0,
-  }));
+  // ── Bridge detection ────────────────────────────────────────────────────────
+  // A bridge node has weighted edges to 2+ distinct clusters.
+  // Build a lookup: nodeId → cluster
+  const idToCluster = new Map<string, number>();
+  for (const n of raw) idToCluster.set(n.id, clusterMap.get(find(n.id)) ?? 0);
+
+  // Count distinct neighbour clusters per node
+  const neighbourClusters = new Map<string, Set<number>>();
+  for (const n of raw) neighbourClusters.set(n.id, new Set());
+  for (const e of edges) {
+    const sc = idToCluster.get(e.source);
+    const tc = idToCluster.get(e.target);
+    if (sc !== undefined) neighbourClusters.get(e.target)?.add(sc);
+    if (tc !== undefined) neighbourClusters.get(e.source)?.add(tc);
+  }
+
+  // ── Cluster role: the heaviest cluster (most total plays) = "core" ───────────
+  const clusterPlays = new Map<number, number>();
+  for (const n of raw) {
+    const c = idToCluster.get(n.id) ?? 0;
+    clusterPlays.set(c, (clusterPlays.get(c) ?? 0) + n.play_count);
+  }
+  const maxClusterPlays = Math.max(...clusterPlays.values(), 0);
+  const coreClusterId   = [...clusterPlays.entries()]
+    .find(([, v]) => v === maxClusterPlays)?.[0] ?? 0;
+
+  const nodes: GraphNode[] = raw.map(n => {
+    const cluster = idToCluster.get(n.id) ?? 0;
+    return {
+      ...n,
+      is_core:      n.play_count >= coreThresh,
+      is_forgotten: !!n.last_played && n.last_played < cutoff180 && n.play_count > medianPlays,
+      is_bridge:    (neighbourClusters.get(n.id)?.size ?? 0) >= 2,
+      cluster,
+      cluster_role: cluster === coreClusterId ? "core" : "side_quest",
+    };
+  });
 
   return { nodes, edges };
 }
@@ -726,11 +759,80 @@ export function getArtistGraph(db: Database, limit = 80): ArtistGraph {
 
 export interface TasteDrift {
   era_label: string;
+  snapshot_label: string;
   current_top: { name: string; plays: number }[];
   year_ago_top: { name: string; plays: number }[];
   new_artists: string[];
   drifted_away: string[];
   consistency_score: number;
+  /** Percentage of current top-10 NOT present in the year-ago top-10 (0 = identical, 100 = totally different) */
+  drift_magnitude: number;
+  /**
+   * Direction of taste drift vs. a year ago:
+   * - `anchored`  — drift_magnitude < 30%: mostly the same artists
+   * - `exploring` — drift_magnitude 30–65%: mixing old faves with new discoveries
+   * - `pivoting`  — drift_magnitude > 65%: almost entirely different artists
+   */
+  drift_direction: "anchored" | "exploring" | "pivoting";
+}
+
+// Evocative era-phrase vocabulary
+const ERA_MOODS = [
+  ["late night", "3am", "midnight", "witching hour"],
+  ["hyperfixation", "deep dive", "obsession", "spiral"],
+  ["soft", "ethereal", "dreamlike", "hazy"],
+  ["dark", "brooding", "melancholic", "heavy"],
+  ["chaotic", "frenzied", "electric", "fever"],
+  ["nostalgic", "throwback", "yearning", "wistful"],
+  ["discovery", "wandering", "exploratory", "curious"],
+];
+
+function buildEraLabel(
+  top1: string,
+  newArtists: string[],
+  driftedAway: string[],
+  consistency: number,
+  driftMagnitude: number,
+): string {
+  if (consistency > 75) return `deep in your ${top1} hyperfixation era 🌀`;
+  if (driftMagnitude > 70) {
+    if (newArtists.length > 0)
+      return `${newArtists[0]} discovery & reinvention era ✨`;
+    return `post-${driftedAway[0] ?? top1} transition era 🌊`;
+  }
+  if (driftMagnitude > 40) {
+    const mood = ERA_MOODS[Math.floor(Math.abs(driftMagnitude * 7) % ERA_MOODS.length)]?.[
+      Math.floor((consistency * 4) % 4)
+    ] ?? "exploratory";
+    return `${mood} ${top1} era 🌙`;
+  }
+  if (newArtists.length >= 4) return `${top1} & new horizons era 🧭`;
+  return `steady ${top1} era 🎯`;
+}
+
+function buildSnapshotLabel(
+  top1: string,
+  newArtists: string[],
+  driftedAway: string[],
+  consistency: number,
+  driftMagnitude: number,
+): string {
+  // Build a more poetic "You are currently in your X era" phrase
+  if (consistency > 80)
+    return `You are currently in your '${top1} loyalty arc' era`;
+  if (driftMagnitude > 75 && newArtists.length > 0)
+    return `You are currently entering your '${newArtists[0]} awakening' era`;
+  if (driftMagnitude > 75)
+    return `You are currently in your 'post-everything reinvention' era`;
+  if (driftMagnitude > 50 && driftedAway.length > 0)
+    return `You are currently in your 'leaving ${driftedAway[0]} behind' era`;
+  if (driftMagnitude > 50 && newArtists.length > 0)
+    return `You are currently in your '${top1} & ${newArtists[0]} crossover' era`;
+  if (consistency < 20 && newArtists.length > 3)
+    return `You are currently in your 'chaotic discovery' era`;
+  if (consistency > 50)
+    return `You are currently in your '${top1} obsession' era`;
+  return `You are currently in your '${top1} moment' era`;
 }
 
 export function getTasteDrift(db: Database): TasteDrift {
@@ -762,22 +864,25 @@ export function getTasteDrift(db: Database): TasteDrift {
   const driftedAway = yearAgo.filter(a => !curSet.has(a.name)).map(a => a.name);
   const overlap     = current.filter(a => pastSet.has(a.name)).length;
   const consistency = current.length > 0 ? Math.round((overlap / current.length) * 100) : 0;
+  const driftMagnitude = 100 - consistency;
 
-  let eraLabel = "discovery era";
-  if (current[0]) {
-    const top1 = current[0].name;
-    if      (consistency > 70)          eraLabel = `deep in your ${top1} era`;
-    else if (newArtists.length > 5)     eraLabel = `new horizons era`;
-    else if (driftedAway.length > 5)    eraLabel = `transitional era`;
-    else                                eraLabel = `${top1} era`;
-  }
+  const driftDirection: TasteDrift["drift_direction"] =
+    driftMagnitude < 30  ? "anchored" :
+    driftMagnitude < 65  ? "exploring" : "pivoting";
+
+  const top1 = current[0]?.name ?? yearAgo[0]?.name ?? "music";
+  const eraLabel      = buildEraLabel(top1, newArtists, driftedAway, consistency, driftMagnitude);
+  const snapshotLabel = buildSnapshotLabel(top1, newArtists, driftedAway, consistency, driftMagnitude);
 
   return {
     era_label:        eraLabel,
+    snapshot_label:   snapshotLabel,
     current_top:      current,
     year_ago_top:     yearAgo,
     new_artists:      newArtists,
     drifted_away:     driftedAway,
     consistency_score: consistency,
+    drift_magnitude:  driftMagnitude,
+    drift_direction:  driftDirection,
   };
 }
