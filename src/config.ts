@@ -1,5 +1,5 @@
 /**
- * Configuration and authentication management for scrobbledb.
+ * Configuration and authentication management for ScrobbleVault.
  *
  * Uses only Bun-native APIs:
  *   - Bun.file() / Bun.write() for file I/O

@@ -1,16 +1,16 @@
-# scrobbledb
+# ScrobbleVault
 
 **Save your Last.fm or Libre.fm listening history to a local SQLite database
 — explore it through a clean browser UI.**
 
-scrobbledb is a **Bun.js web application** that fetches your scrobble history
+ScrobbleVault is a **Bun.js web application** that fetches your scrobble history
 from [Last.fm](https://www.last.fm/) or [Libre.fm](https://libre.fm/) and
 stores it locally in a SQLite database.  Browse and analyse your music data
 through an in-browser UI with no external dependencies.
 
 ## Origin & Credits
 
-scrobbledb started as a port of
+ScrobbleVault started as a port of
 [**lastfm-to-sqlite**](https://github.com/jacobian/lastfm-to-sqlite)
 by [Jacob Kaplan-Moss](https://github.com/jacobian) (originally released under
 the [WTFPL](https://www.wtfpl.net)).
@@ -51,8 +51,8 @@ curl -fsSL https://bun.sh/install | bash
 ## Installation
 
 ```bash
-git clone https://github.com/shelbeely/scrobbledb.git
-cd scrobbledb
+git clone https://github.com/shelbeely/ScrobbleVault.git
+cd ScrobbleVault
 bun install
 ```
 
@@ -86,8 +86,10 @@ Go to **Settings** (⚙️ in the nav bar) and enter your API credentials.
 
 **Last.fm**: create an API account at
 https://www.last.fm/api/account/create  
-**Libre.fm**: create an API account at
-https://libre.fm/api/account/create
+**Libre.fm**: no registration needed — you may use any 32-character string as
+your API key and shared secret. See the
+[Libre.fm developer docs](https://github.com/libre-fm/developer/wiki/Libre.fm-fundamentals)
+for details.
 
 Select your network, enter your username, API key, shared secret, and
 password, then click **Save & Authenticate**.  

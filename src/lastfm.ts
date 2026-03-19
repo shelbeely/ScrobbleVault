@@ -22,7 +22,7 @@ import type { ArtistRow, AlbumRow, TrackRow, PlayRow } from "./db";
  * automated scraper — Libre.fm explicitly blocks anything that looks like one.
  * See: https://github.com/libre-fm/developer/wiki/Libre.fm-fundamentals#ai-policy
  */
-const USER_AGENT = "scrobbledb/2.0 (https://github.com/shelbeely/ScrobbleVault)";
+const USER_AGENT = "ScrobbleVault/2.0 (https://github.com/shelbeely/ScrobbleVault)";
 
 // ─── Crypto (Bun-native) ──────────────────────────────────────────────────────
 

@@ -2,7 +2,7 @@
 
 ## Overview
 
-scrobbledb uses a single CI workflow powered by **Bun**.  
+ScrobbleVault uses a single CI workflow powered by **Bun**.  
 There is no Python, no uv, no pip, no PyPI publishing.
 
 ## Workflows
