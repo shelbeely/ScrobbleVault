@@ -2,8 +2,8 @@
 
 ## Overview
 
-ScrobbleVault uses a single CI workflow powered by **Bun**.  
-There is no Python, no uv, no pip, no PyPI publishing.
+ScrobbleVault uses Bun-powered GitHub Actions workflows for CI and Copilot environment setup.  
+There is no Python, no uv, no pip, and no PyPI publishing.
 
 ## Workflows
 
@@ -21,6 +21,18 @@ There is no Python, no uv, no pip, no PyPI publishing.
 | Verify no bare Node imports | Fails if any `src/` file imports from `"fs"`, `"crypto"`, etc. without `node:` prefix |
 | Smoke-test startup | Runs `bun run src/index.ts --help` to confirm the app starts |
 
+### `copilot-setup-steps.yml` — GitHub Copilot coding agent bootstrap
+
+**Purpose:** Prepares the repository environment before GitHub Copilot coding agent starts work.
+
+**Steps:**
+
+| Step | What it does |
+|---|---|
+| Checkout | Checks out repository contents |
+| Set up Bun | Installs Bun 1.x via `oven-sh/setup-bun` |
+| `bun install` | Installs the project dependencies used by the agent session |
+
 ### Local Equivalents
 
 ```bash
@@ -28,6 +40,7 @@ bun install          # install deps
 bun run typecheck    # type-check
 bun dev              # start dev server
 bun start            # start prod server
+bun run cli help     # smoke-test the CLI entry point
 ```
 
 ## Updating Bun Version
