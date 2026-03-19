@@ -1,17 +1,13 @@
 /**
- * Last.fm and Libre.fm API client.
+ * Last.fm, Libre.fm, and ScrobbleVault compatibility API client.
  *
  * Uses Bun-native APIs exclusively:
  *   - Bun.CryptoHasher  for MD5 (no "crypto" module)
  *   - fetch()           for HTTP (Bun's built-in)
  *   - Bun.sleep()       for retry back-off
- *
- * Both networks share an identical REST API; only the base URL differs:
- *   Last.fm  → https://ws.audioscrobbler.com/2.0/
- *   Libre.fm → https://libre.fm/2.0/
  */
 
-import { NETWORK_API_URLS, type NetworkName } from "./config";
+import { resolveNetworkApiUrl, type NetworkName } from "./config";
 import type { ArtistRow, AlbumRow, TrackRow, PlayRow } from "./db";
 
 // ─── Client identity ──────────────────────────────────────────────────────────
@@ -35,16 +31,25 @@ export function md5(input: string): string {
 function buildApiSig(params: Record<string, string>, secret: string): string {
   const raw = Object.keys(params)
     .sort()
-    .map((k) => `${k}${params[k]}`)
+    .map((key) => `${key}${params[key]}`)
     .join("") + secret;
   return md5(raw);
+}
+
+interface NetworkRequestOptions {
+  baseUrl?: string;
+}
+
+function networkUrl(network: NetworkName, options?: NetworkRequestOptions): string {
+  return resolveNetworkApiUrl(network, options?.baseUrl);
 }
 
 // ─── Session key generation ───────────────────────────────────────────────────
 
 /**
  * Obtain a session key via the `auth.getMobileSession` method.
- * Works identically for Last.fm and Libre.fm.
+ * ScrobbleVault's compatibility layer accepts the same request shape but does
+ * not require callers to register their own API key and shared secret.
  */
 export async function getSessionKey(
   network: NetworkName,
@@ -52,31 +57,31 @@ export async function getSessionKey(
   secret: string,
   username: string,
   password: string,
+  options?: NetworkRequestOptions,
 ): Promise<string> {
-  const passwordHash = md5(password);
   const params: Record<string, string> = {
-    method:   "auth.getMobileSession",
+    method: "auth.getMobileSession",
     username,
-    password: passwordHash,
-    api_key:  apiKey,
+    password: md5(password),
+    api_key: apiKey,
   };
   params.api_sig = buildApiSig(params, secret);
-  params.format  = "json";
+  params.format = "json";
 
-  const res = await fetch(NETWORK_API_URLS[network], {
-    method:  "POST",
+  const res = await fetch(networkUrl(network, options), {
+    method: "POST",
     headers: {
       "Content-Type": "application/x-www-form-urlencoded",
-      "User-Agent":   USER_AGENT,
+      "User-Agent": USER_AGENT,
     },
-    body:    new URLSearchParams(params).toString(),
+    body: new URLSearchParams(params).toString(),
   });
 
   if (!res.ok) throw new Error(`HTTP ${res.status} from ${network} auth endpoint`);
 
   const data = (await res.json()) as {
     session?: { key: string };
-    error?:   number;
+    error?: number;
     message?: string;
   };
 
@@ -94,34 +99,35 @@ const MAX_RETRIES = 5;
 interface RecentTracksResponse {
   recenttracks?: {
     "@attr"?: { totalPages?: string; total?: string; perPage?: string };
-    track?:   RawTrack | RawTrack[];
+    track?: RawTrack | RawTrack[];
   };
-  error?:   number;
+  error?: number;
   message?: string;
 }
 
 interface RawTrack {
-  name?:    string;
-  mbid?:    string;
+  name?: string;
+  mbid?: string;
   "@attr"?: { nowplaying?: string };
-  date?:    { uts?: string };
-  artist?:  { "#text"?: string; mbid?: string };
-  album?:   { "#text"?: string; mbid?: string };
+  date?: { uts?: string };
+  artist?: { "#text"?: string; mbid?: string };
+  album?: { "#text"?: string; mbid?: string };
 }
 
 /** GET request to the network API with exponential-backoff retry. */
 async function apiGet(
-  network:    NetworkName,
-  apiKey:     string,
+  network: NetworkName,
+  apiKey: string,
   sessionKey: string,
-  params:     Record<string, string>,
-  retries =   MAX_RETRIES,
+  params: Record<string, string>,
+  options?: NetworkRequestOptions,
+  retries = MAX_RETRIES,
 ): Promise<unknown> {
-  const url = new URL(NETWORK_API_URLS[network]);
-  url.searchParams.set("api_key",  apiKey);
-  url.searchParams.set("sk",       sessionKey);
-  url.searchParams.set("format",   "json");
-  for (const [k, v] of Object.entries(params)) url.searchParams.set(k, v);
+  const url = new URL(networkUrl(network, options));
+  url.searchParams.set("api_key", apiKey);
+  url.searchParams.set("sk", sessionKey);
+  url.searchParams.set("format", "json");
+  for (const [key, value] of Object.entries(params)) url.searchParams.set(key, value);
 
   let lastErr: Error | null = null;
   let wait = 1_000;
@@ -138,7 +144,7 @@ async function apiGet(
     } catch (err) {
       lastErr = err instanceof Error ? err : new Error(String(err));
       if (attempt < retries) {
-        await Bun.sleep(wait + Math.random() * 500);   // Bun.sleep — no Node timers
+        await Bun.sleep(wait + Math.random() * 500);
         wait = Math.min(wait * 2, 16_000);
       }
     }
@@ -150,26 +156,27 @@ async function apiGet(
 // ─── Track count ─────────────────────────────────────────────────────────────
 
 export async function getRecentTracksCount(
-  network:    NetworkName,
-  apiKey:     string,
+  network: NetworkName,
+  apiKey: string,
   sessionKey: string,
-  username:   string,
-  since?:     Date,
-  until?:     Date,
+  username: string,
+  since?: Date,
+  until?: Date,
+  options?: NetworkRequestOptions,
 ): Promise<number> {
   const params: Record<string, string> = {
     method: "user.getRecentTracks",
-    user:   username,
-    limit:  "1",
-    page:   "1",
+    user: username,
+    limit: "1",
+    page: "1",
   };
   if (since) params.from = String(Math.floor(since.getTime() / 1_000));
-  if (until) params.to   = String(Math.floor(until.getTime() / 1_000));
+  if (until) params.to = String(Math.floor(until.getTime() / 1_000));
 
   try {
-    const data  = (await apiGet(network, apiKey, sessionKey, params)) as RecentTracksResponse;
+    const data = (await apiGet(network, apiKey, sessionKey, params, options)) as RecentTracksResponse;
     const total = parseInt(data.recenttracks?.["@attr"]?.total ?? "0", 10);
-    return isNaN(total) ? 0 : total;
+    return Number.isNaN(total) ? 0 : total;
   } catch {
     return 0;
   }
@@ -179,9 +186,9 @@ export async function getRecentTracksCount(
 
 export interface ScrobbleData {
   artist: ArtistRow;
-  album:  AlbumRow;
-  track:  TrackRow;
-  play:   PlayRow;
+  album: AlbumRow;
+  track: TrackRow;
+  play: PlayRow;
 }
 
 /** Derive a deterministic synthetic ID from a string using MD5. */
@@ -196,66 +203,67 @@ function extractTrackData(raw: RawTrack): ScrobbleData | null {
   const uts = raw.date?.uts;
   if (!uts) return null;
 
-  const timestamp   = new Date(parseInt(uts, 10) * 1_000).toISOString();
-  const trackTitle  = raw.name ?? "(unknown track)";
-  const trackMbid   = raw.mbid ?? "";
-  const artistName  = raw.artist?.["#text"] ?? "(unknown artist)";
-  const artistMbid  = raw.artist?.mbid  || syntheticId(artistName);
-  const albumTitle  = raw.album?.["#text"] || "(unknown album)";
-  const albumMbid   = raw.album?.mbid   || syntheticId(artistMbid + albumTitle);
-  const trackId     = trackMbid         || syntheticId(albumMbid + trackTitle);
+  const timestamp = new Date(parseInt(uts, 10) * 1_000).toISOString();
+  const trackTitle = raw.name ?? "(unknown track)";
+  const trackMbid = raw.mbid ?? "";
+  const artistName = raw.artist?.["#text"] ?? "(unknown artist)";
+  const artistMbid = raw.artist?.mbid || syntheticId(artistName);
+  const albumTitle = raw.album?.["#text"] || "(single)";
+  const albumMbid = raw.album?.mbid || syntheticId(artistMbid + albumTitle);
+  const trackId = trackMbid || syntheticId(albumMbid + trackTitle);
 
   return {
     artist: { id: artistMbid, name: artistName },
-    album:  { id: albumMbid,  title: albumTitle, artist_id: artistMbid },
-    track:  { id: trackId,    title: trackTitle, album_id:  albumMbid  },
-    play:   { timestamp,      track_id: trackId },
+    album: { id: albumMbid, title: albumTitle, artist_id: artistMbid },
+    track: { id: trackId, title: trackTitle, album_id: albumMbid },
+    play: { timestamp, track_id: trackId },
   };
 }
 
 /**
  * Async generator that yields scrobbles page-by-page.
- * Works with both Last.fm and Libre.fm — the `network` param selects the URL.
+ * ScrobbleVault reuses the same response shape on its compatibility endpoint,
+ * so the importer can treat it like another network.
  */
 export async function* recentTracks(
-  network:    NetworkName,
-  apiKey:     string,
+  network: NetworkName,
+  apiKey: string,
   sessionKey: string,
-  username:   string,
-  options: {
-    since?:    Date;
-    until?:    Date;
-    limit?:    number;
+  username: string,
+  options: NetworkRequestOptions & {
+    since?: Date;
+    until?: Date;
+    limit?: number;
     pageSize?: number;
   } = {},
 ): AsyncGenerator<ScrobbleData> {
-  const { since, until, limit, pageSize = 200 } = options;
+  const { since, until, limit, pageSize = 200, baseUrl } = options;
 
   const params: Record<string, string> = {
     method: "user.getRecentTracks",
-    user:   username,
-    limit:  String(pageSize),
+    user: username,
+    limit: String(pageSize),
   };
   if (since) params.from = String(Math.floor(since.getTime() / 1_000));
-  if (until) params.to   = String(Math.floor(until.getTime() / 1_000));
+  if (until) params.to = String(Math.floor(until.getTime() / 1_000));
 
-  let page       = 1;
+  let page = 1;
   let totalPages = Infinity;
-  let yielded    = 0;
+  let yielded = 0;
 
   while (page <= totalPages) {
     params.page = String(page);
 
-    const data  = (await apiGet(network, apiKey, sessionKey, params)) as RecentTracksResponse;
-    const attr  = data.recenttracks?.["@attr"];
+    const data = (await apiGet(network, apiKey, sessionKey, params, { baseUrl })) as RecentTracksResponse;
+    const attr = data.recenttracks?.["@attr"];
 
     if (page === 1 && attr?.totalPages) {
-      const tp = parseInt(attr.totalPages, 10);
-      totalPages = isNaN(tp) || tp < 1 ? 1 : tp;
+      const totalPagesValue = parseInt(attr.totalPages, 10);
+      totalPages = Number.isNaN(totalPagesValue) || totalPagesValue < 1 ? 1 : totalPagesValue;
     }
 
     const rawTracks = data.recenttracks?.track ?? [];
-    const tracks    = Array.isArray(rawTracks) ? rawTracks : [rawTracks];
+    const tracks = Array.isArray(rawTracks) ? rawTracks : [rawTracks];
 
     for (const raw of tracks) {
       const scrobble = extractTrackData(raw);

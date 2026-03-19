@@ -1,40 +1,54 @@
 # ScrobbleVault
 
-**Save your Last.fm or Libre.fm listening history to a local SQLite database
-— explore it through a clean browser UI.**
+**A Bun-native listening archive and self-hosted scrobbling backend for Last.fm, Libre.fm, and Panoscrobbler-style clients.**
 
-ScrobbleVault is a **Bun.js web application** that fetches your scrobble history
-from [Last.fm](https://www.last.fm/) or [Libre.fm](https://libre.fm/) and
-stores it locally in a SQLite database.  Browse and analyse your music data
-through an in-browser UI with no external dependencies.
-
-## Origin & Credits
-
-ScrobbleVault started as a port of
-[**lastfm-to-sqlite**](https://github.com/jacobian/lastfm-to-sqlite)
-by [Jacob Kaplan-Moss](https://github.com/jacobian) (originally released under
-the [WTFPL](https://www.wtfpl.net)).
-
-It was then significantly extended as a Python CLI tool by
-[Brian M. Dennis](https://github.com/crossjam) (the
-[crossjam/scrobbledb](https://github.com/crossjam/scrobbledb) repository),
-adding domain-specific commands, FTS5 search, an interactive TUI, export
-options, and rich terminal output.
-
-This version is a **full port to Bun.js** — rewritten as a web application
-using only Bun's native APIs (`bun:sqlite`, `Bun.serve`, `Bun.CryptoHasher`,
-`fetch`).  All credit for the original concept and data model goes to Jacob
-Kaplan-Moss and Brian M. Dennis.
+ScrobbleVault stores your listening history in local SQLite, serves a browser UI, exposes a clean JSON API, and now includes a **Last.fm-compatible compatibility endpoint** so you can scrobble directly into it from apps like **Panoscrobbler** using its **“Last.fm-like instance”** connection type.
 
 ---
 
-## Why Bun?
+## Features
 
-- **Single binary runtime** — no Python virtualenv, no npm install of 500 packages
-- **Native SQLite** — `bun:sqlite` is built in, zero-dependency
-- **Native HTTP server** — `Bun.serve()` is built in, no express/fastify
-- **Native crypto** — `Bun.CryptoHasher` for MD5 signing
-- **Fast** — Bun starts and runs significantly faster than Node.js or Python
+- Bun-native server with `Bun.serve()`
+- SQLite storage with `bun:sqlite`
+- Browser UI for dashboard, plays, artists, albums, tracks, wrapped, taste drift, universe map, timeline, and now-playing cache
+- Local username/password auth with seeded default user on first run
+- JSON API for login, recent listens, stats, scrobbling, and now-playing updates
+- **Last.fm-compatible `/2.0/` endpoint** for:
+  - `auth.getMobileSession`
+  - `track.updateNowPlaying`
+  - `track.scrobble`
+  - `user.getRecentTracks`
+  - `user.getInfo`
+- Import from **Last.fm**, **Libre.fm**, or another **ScrobbleVault** instance as a third network option
+- Duplicate-scrobble protection with a configurable time window
+- Now-playing state cache for the self-hosted backend
+- Ink-based CLI for exploring the local archive
+
+---
+
+## Architecture summary
+
+ScrobbleVault remains a Bun-native app with two user-facing entry points:
+
+- **Web app**: `src/index.ts`
+- **CLI**: `src/cli/index.tsx`
+
+Core modules:
+
+- `src/db.ts` — schema, SQLite connection, metadata tables, auth/session tables
+- `src/auth.ts` — local auth, session creation, cookie/token helpers
+- `src/scrobble.ts` — normalization, dedupe, insertion, now-playing updates
+- `src/lastfm.ts` — Last.fm / Libre.fm / ScrobbleVault compatibility client
+- `src/queries.ts` — stats, lists, search, wrapped, heatmap, graph queries
+- `src/web/routes.ts` — HTML routes, JSON API routes, and `/2.0/` compatibility layer
+- `src/web/templates.ts` — server-rendered HTML pages
+
+SQLite stores the canonical library tables (`artists`, `albums`, `tracks`, `plays`) plus:
+
+- `play_metadata`
+- `app_users`
+- `app_sessions`
+- `now_playing`
 
 ---
 
@@ -42,161 +56,336 @@ Kaplan-Moss and Brian M. Dennis.
 
 - [Bun](https://bun.sh) ≥ 1.0
 
+Install Bun:
+
 ```bash
 curl -fsSL https://bun.sh/install | bash
 ```
 
 ---
 
-## Installation
+## Setup
 
 ```bash
 git clone https://github.com/shelbeely/ScrobbleVault.git
 cd ScrobbleVault
 bun install
+bun run migrate
+bun run seed
+```
+
+On first startup, ScrobbleVault seeds a local user automatically if none exists.
+
+Default first-run credentials:
+
+- username: `admin`
+- password: `changeme`
+
+You should override that before first boot in real deployments:
+
+```bash
+export SCROBBLEVAULT_DEFAULT_USERNAME=me
+export SCROBBLEVAULT_DEFAULT_PASSWORD='use-a-real-password'
 ```
 
 ---
 
-## Usage
+## Running locally
 
 ```bash
-# Start the web server (default: http://localhost:3000)
+# Start the web app + JSON API + compatibility backend
 bun start
 
-# Custom port
-bun start --port 8080
-
-# Custom database path
-bun start --database /path/to/scrobbledb.db
-
-# Development mode (hot-reload)
+# Development mode
 bun dev
+
+# Explicit schema init
+bun run migrate
+
+# Explicit seed
+bun run seed
+
+# Typecheck
+bun run typecheck
+
+# CLI help
+bun run cli help
 ```
 
-Open **http://localhost:3000** in your browser.
+By default the server listens on:
+
+- `HOST=0.0.0.0`
+- `PORT=3000` (or the platform-provided `PORT`)
+
+Useful environment variables:
+
+| Variable | Purpose |
+|---|---|
+| `PORT` | HTTP port |
+| `HOST` | Bind address, defaults to `0.0.0.0` |
+| `SCROBBLEDB_PATH` | SQLite database path |
+| `SCROBBLEVAULT_DEFAULT_USERNAME` | Seed username |
+| `SCROBBLEVAULT_DEFAULT_PASSWORD` | Seed password |
+| `SCROBBLEVAULT_DUPLICATE_WINDOW_SECONDS` | Duplicate-detection window (default `180`) |
+| `SCROBBLEVAULT_SESSION_TTL_HOURS` | Session/token TTL (default `720`) |
 
 ---
 
-## CLI
+## Deploying to Render.com
 
-ScrobbleVault also ships an interactive TUI CLI built with [ink](https://github.com/vadimdemedes/ink) (React for CLIs).
+ScrobbleVault can deploy to Render, but **SQLite must live on a persistent disk**.
 
-```bash
-bun run cli <command> [flags]
-```
+### Recommended setup
 
-### Commands
-
-| Command | Description |
-|---|---|
-| `stats` | Overview statistics with yearly progress bars |
-| `artists` | Top artists with inline play-count bars |
-| `albums` | Top albums with inline play-count bars |
-| `tracks` | Top tracks with inline play-count bars |
-| `plays` | Recent play history |
-| `search <query>` | FTS5 full-text search across artists, albums, and tracks |
-| `export` | Export data to CSV or JSON |
-| `help` | Show usage |
-
-### Examples
+1. Create a **Web Service** using Bun.
+2. Attach a **persistent disk** mounted at `/var/data`.
+3. Set these environment variables:
 
 ```bash
-# Overview stats with top-years progress bars
-bun run cli stats
-
-# Top 10 artists sorted by play count (default), with inline bars
-bun run cli artists --limit 10
-
-# Albums sorted by most recently played
-bun run cli albums --sort recent
-
-# Plays from the last 7 days
-bun run cli plays --since "7 days ago" --limit 50
-
-# Full-text search
-bun run cli search "radiohead"
-
-# Export all plays as CSV
-bun run cli export --format csv --type plays --output plays.csv
-
-# Export top 100 artists as JSON to stdout
-bun run cli export --format json --type artists --limit 100
+HOST=0.0.0.0
+SCROBBLEDB_PATH=/var/data/scrobbledb.db
+SCROBBLEVAULT_DEFAULT_USERNAME=admin
+SCROBBLEVAULT_DEFAULT_PASSWORD=<your password>
 ```
 
-### Options
+4. Use these commands:
 
-| Flag | Description |
-|---|---|
-| `--database <path>` | SQLite database path (default: XDG data dir) |
-| `--limit <N>` | Max rows (default: 20) |
-| `--sort plays\|name\|title\|recent` | Sort field |
-| `--order asc\|desc` | Sort direction (default: desc) |
-| `--since <date>` | ISO date or `"N days ago"` — plays only |
-| `--until <date>` | ISO date or `"N days ago"` — plays only |
-| `--format csv\|json` | Export format |
-| `--type artists\|albums\|tracks\|plays` | What to export |
-| `--output <file>` | Write export to file instead of stdout |
+- **Build command:** `bun install`
+- **Start command:** `bun run start`
+
+A sample `render.yaml` is included in the repo.
 
 ---
 
-## Getting Started
+## Panoscrobbler / Pano Scrobbler compatibility
 
-### 1. Configure credentials
+ScrobbleVault exposes a Last.fm-like compatibility endpoint at:
 
-Go to **Settings** (⚙️ in the nav bar) and enter your API credentials.
+```text
+https://your-app.onrender.com/2.0/
+```
 
-**Last.fm**: create an API account at
-https://www.last.fm/api/account/create  
-**Libre.fm**: no registration needed — you may use any 32-character string as
-your API key and shared secret. See the
-[Libre.fm developer docs](https://github.com/libre-fm/developer/wiki/Libre.fm-fundamentals)
-for details.
+In Panoscrobbler’s **Last.fm-like instance** screen:
 
-Select your network, enter your username, API key, shared secret, and
-password, then click **Save & Authenticate**.  
-Both Last.fm and Libre.fm use the same authentication flow.
+- **API URL** → `https://your-app.onrender.com/2.0/`
+- **Username** → your ScrobbleVault local username
+- **Password** → your ScrobbleVault local password
 
-### 2. Import your history
+That flow is intended to work with:
 
-Click **⬇ Import New Scrobbles** on the dashboard (or navigate to `/ingest`).
-Optionally set a date range or limit, then start the import.  Progress streams
-live to the browser.
+- verification/login via `auth.getMobileSession`
+- now-playing submission via `track.updateNowPlaying`
+- scrobbling via `track.scrobble`
 
-On subsequent imports ScrobbleVault automatically picks up from where it left off.
+The same compatibility endpoint can also be used inside ScrobbleVault’s **Settings** page as a third network option alongside **Last.fm** and **Libre.fm**.
 
-### 3. Explore
+---
 
-| Page | What it shows |
-|---|---|
-| **Dashboard** | Overview stats + top artists |
-| **Plays** | Full chronological play history |
-| **Artists** | All artists, sortable by plays / name / recent |
-| **Albums** | All albums, sortable by plays / title / recent |
-| **Tracks** | All tracks, sortable by plays / title / recent |
-| **Stats** | Yearly and monthly breakdown |
-| **Search** | Full-text search across artists, albums, and tracks |
+## Web UI
+
+The browser UI includes:
+
+- `/` — dashboard
+- `/plays` — recent scrobbles
+- `/artists` — artist browser
+- `/albums` — album browser
+- `/tracks` — track browser
+- `/stats` — high-level stats
+- `/search` — FTS search
+- `/wrapped` — yearly summary
+- `/universe` — artist graph view
+- `/timeline` — listening heatmap
+- `/taste` — taste-drift summary
+- `/now-playing` — cached now-playing state
+- `/settings` — external network / compatibility source settings
+- `/login` — local session login page
 
 ---
 
 ## JSON API
 
-Every page has a matching JSON endpoint:
+### Auth
 
-| Endpoint | Description |
-|---|---|
-| `GET /api/stats` | Overview statistics |
-| `GET /api/artists?limit=50` | Artist list |
-| `GET /api/albums?limit=50` | Album list |
-| `GET /api/tracks?limit=50` | Track list |
-| `GET /api/plays?limit=50` | Recent plays |
-| `GET /api/search?q=radiohead&limit=20` | FTS5 search |
+#### `POST /api/auth/login`
+
+```bash
+curl -X POST http://localhost:3000/api/auth/login \
+  -H 'Content-Type: application/json' \
+  -d '{"username":"admin","password":"changeme"}'
+```
+
+Returns a JSON session token and also sets an HTTP-only cookie.
+
+#### `POST /api/auth/logout`
+
+```bash
+curl -X POST http://localhost:3000/api/auth/logout \
+  -H 'Authorization: Bearer <session-token>'
+```
+
+#### `GET /api/me`
+
+```bash
+curl http://localhost:3000/api/me \
+  -H 'Authorization: Bearer <session-token>'
+```
 
 ---
 
-## Data Storage
+### Ingestion endpoints
 
-ScrobbleVault follows the XDG Base Directory specification.  All data is stored in:
+#### `POST /api/scrobble`
+
+```bash
+curl -X POST http://localhost:3000/api/scrobble \
+  -H 'Authorization: Bearer <session-token>' \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "artist": "Boards of Canada",
+    "track": "Dayvan Cowboy",
+    "album": "The Campfire Headphase",
+    "listenedAt": "2026-03-19T20:00:00.000Z"
+  }'
+```
+
+#### `POST /api/now-playing`
+
+```bash
+curl -X POST http://localhost:3000/api/now-playing \
+  -H 'Authorization: Bearer <session-token>' \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "artist": "Boards of Canada",
+    "track": "Roygbiv",
+    "album": "Music Has the Right to Children"
+  }'
+```
+
+#### `GET /api/now-playing`
+
+```bash
+curl http://localhost:3000/api/now-playing
+```
+
+---
+
+### Library and stats endpoints
+
+#### `GET /health`
+
+```bash
+curl http://localhost:3000/health
+```
+
+#### `GET /api/recent`
+
+```bash
+curl 'http://localhost:3000/api/recent?limit=25&page=1'
+```
+
+#### `GET /api/stats/overview`
+
+```bash
+curl 'http://localhost:3000/api/stats/overview?since=30%20days%20ago'
+```
+
+#### `GET /api/stats/top-artists`
+
+```bash
+curl 'http://localhost:3000/api/stats/top-artists?limit=10'
+```
+
+#### `GET /api/stats/top-albums`
+
+```bash
+curl 'http://localhost:3000/api/stats/top-albums?limit=10'
+```
+
+#### `GET /api/stats/top-tracks`
+
+```bash
+curl 'http://localhost:3000/api/stats/top-tracks?limit=10'
+```
+
+#### Detail endpoints
+
+```bash
+curl http://localhost:3000/api/artists/<artist-id>
+curl http://localhost:3000/api/albums/<album-id>
+curl http://localhost:3000/api/tracks/<track-id>
+```
+
+Legacy analytics endpoints remain available too:
+
+- `GET /api/stats`
+- `GET /api/artists`
+- `GET /api/albums`
+- `GET /api/tracks`
+- `GET /api/plays`
+- `GET /api/search?q=...`
+
+---
+
+## Compatibility endpoint examples
+
+### Login / verify
+
+```bash
+curl -X POST http://localhost:3000/2.0/ \
+  -H 'Content-Type: application/x-www-form-urlencoded' \
+  -d 'method=auth.getMobileSession&username=admin&password=4cb9c8a8048fd02294477fcb1a41191a&api_key=x&api_sig=y&format=json'
+```
+
+> The `password` field above is the MD5 hash of `changeme`, matching the Last.fm mobile-session convention.
+
+### Update now playing
+
+```bash
+curl -X POST http://localhost:3000/2.0/ \
+  -H 'Content-Type: application/x-www-form-urlencoded' \
+  -d 'method=track.updateNowPlaying&sk=<session-key>&artist=Boards%20of%20Canada&track=Roygbiv&album=Music%20Has%20the%20Right%20to%20Children'
+```
+
+### Scrobble a track
+
+```bash
+curl -X POST http://localhost:3000/2.0/ \
+  -H 'Content-Type: application/x-www-form-urlencoded' \
+  -d 'method=track.scrobble&sk=<session-key>&artist=Boards%20of%20Canada&track=Roygbiv&album=Music%20Has%20the%20Right%20to%20Children&timestamp=1710888000'
+```
+
+### Fetch recent tracks
+
+```bash
+curl 'http://localhost:3000/2.0/?method=user.getRecentTracks&user=admin&limit=5'
+```
+
+---
+
+## CLI
+
+ScrobbleVault also includes an Ink-based CLI:
+
+```bash
+bun run cli help
+```
+
+Examples:
+
+```bash
+bun run cli stats
+bun run cli artists --limit 10
+bun run cli albums --sort recent
+bun run cli plays --since "7 days ago" --limit 50
+bun run cli search "radiohead"
+bun run cli export --format csv --type plays --output plays.csv
+```
+
+---
+
+## Data storage
+
+Default data locations:
 
 | Platform | Default location |
 |---|---|
@@ -204,67 +393,28 @@ ScrobbleVault follows the XDG Base Directory specification.  All data is stored 
 | macOS | `~/Library/Application Support/dev.pirateninja.scrobbledb/` |
 | Windows | `%LOCALAPPDATA%\dev.pirateninja.scrobbledb\` |
 
-Override with `--database /custom/path.db` or `SCROBBLEDB_PATH=/custom/path.db`.
-
-### Database schema
-
-```sql
-artists  (id, name)
-albums   (id, title, artist_id)
-tracks   (id, title, album_id)
-plays    (timestamp, track_id)          -- primary key: (timestamp, track_id)
-tracks_fts                              -- FTS5 virtual table for full-text search
-```
+On Render, you should override this with a disk-backed path such as `/var/data/scrobbledb.db`.
 
 ---
 
-## Development
+## Validation
+
+Typical local validation:
 
 ```bash
-bun dev               # hot-reload server
-bun run typecheck     # TypeScript strict type-check (no emit)
+bun run typecheck
+bun run src/index.ts --help
+bun run cli help
 ```
 
-See [AGENTS.md](AGENTS.md) for full developer and AI-agent guidelines,
-including the complete list of Bun-native API substitutes for Node.js patterns.
-
 ---
 
-## Full Disclosure
+## Future improvement ideas
 
-Full disclosure, this project is primarily "auditionware". The main goal is to
-provide something for potential external collaborators or employers to view and
-review. Yup, it's a bit about me showing off. If you have strong opinions feel
-free to fork this sucker and take it where your heart desires.
-
----
-
-## Contributing
-
-As mentioned above, this project is primarily "auditionware".
-
-However, pull requests and issues are welcome, at least as criticism, feedback,
-and inspiration! There might be a lag on responding or acceptance though.
-You're likely best off assuming that a PR will take forever to be accepted if
-at all. Similarly for addressing issues. For major changes, please open an
-issue first to discuss what you would like to change.
-
----
-
-## Agentic Coding Disclosure
-
-Significant portions of this project were implemented through the use of
-agentic coding tools such as Claude Code, GitHub Copilot Agent, OpenAI Codex,
-and Gemini CLI. This was a specific goal intended to explore and increase my
-proficiency with AI accelerated coding practices.
-
-See [AGENTS.md](AGENTS.md) for detailed development guidelines.
-
----
-
-## License
-
-Apache License 2.0 — see [LICENSE](LICENSE).
-
-Original **lastfm-to-sqlite** by Jacob Kaplan-Moss, originally under the
-[WTFPL](https://www.wtfpl.net).
+- JSON/CSV import endpoints and preview mode
+- loved-track toggle and persistence
+- search endpoints for artists and albums with richer filters
+- better session management UI
+- stronger now-playing freshness expiration rules
+- optional import jobs table and progress history
+- richer Last.fm-compat coverage for more third-party scrobblers

@@ -3,13 +3,14 @@
  *
  * Starts a Bun-native HTTP server (Bun.serve) on the configured port.
  * Uses bun:sqlite for the database and Bun's built-in fetch for the
- * Last.fm / Libre.fm API. No Node.js APIs.
+ * Last.fm / Libre.fm / ScrobbleVault compatibility APIs. No Node.js APIs.
  *
  * Usage:
  *   bun run src/index.ts [--port 3000] [--database /path/to/db]
  *   bun run src/index.ts --help
  */
 
+import { ensureDefaultUser } from "./auth";
 import { openDb, initSchema, setupFts5 } from "./db";
 import { routeRequest } from "./web/routes";
 
@@ -18,13 +19,13 @@ import { routeRequest } from "./web/routes";
 const args = Bun.argv.slice(2);
 
 function flag(name: string, fallback: string): string {
-  const i = args.findIndex((a) => a === `--${name}`);
-  return i !== -1 && args[i + 1] ? (args[i + 1] ?? fallback) : fallback;
+  const index = args.findIndex((arg) => arg === `--${name}`);
+  return index !== -1 && args[index + 1] ? (args[index + 1] ?? fallback) : fallback;
 }
 
 if (args.includes("--help") || args.includes("-h")) {
   console.log(`
-ScrobbleVault — Save your listening history from Last.fm or Libre.fm.
+ScrobbleVault — Save your listening history from Last.fm, Libre.fm, or a self-hosted ScrobbleVault instance.
 
 Usage:
   bun run src/index.ts [options]
@@ -32,21 +33,22 @@ Usage:
 Options:
   --port <n>        Port to listen on          (default: 3000, or PORT env var)
   --database <path> Path to SQLite database    (default: XDG data directory)
-  --host <addr>     Host/interface to bind to  (default: localhost)
+  --host <addr>     Host/interface to bind to  (default: 0.0.0.0)
   --help            Show this message
 `);
   process.exit(0);
 }
 
-const PORT     = parseInt(flag("port", Bun.env.PORT ?? "3000"), 10);
-const HOST     = flag("host", Bun.env.HOST ?? "localhost");
-const DB_PATH  = flag("database", Bun.env.SCROBBLEDB_PATH ?? "");
+const PORT = parseInt(flag("port", Bun.env.PORT ?? "3000"), 10);
+const HOST = flag("host", Bun.env.HOST ?? "0.0.0.0");
+const DB_PATH = flag("database", Bun.env.SCROBBLEDB_PATH ?? "");
 
 // ─── Database bootstrap ───────────────────────────────────────────────────────
 
 const db = openDb(DB_PATH || undefined);
 initSchema(db);
 setupFts5(db);
+const seededUser = await ensureDefaultUser(db);
 
 // ─── Server (Bun.serve — no http/express/fastify) ────────────────────────────
 
@@ -65,14 +67,18 @@ const server = Bun.serve({
 });
 
 console.log(`
-  ╔══════════════════════════════════════════╗
-  ║        ScrobbleVault  (Bun ${Bun.version})       ║
-  ╠══════════════════════════════════════════╣
-  ║  Web UI  →  http://${HOST}:${PORT}${" ".repeat(Math.max(0, 18 - HOST.length - String(PORT).length))}║
-  ║  API     →  http://${HOST}:${PORT}/api${" ".repeat(Math.max(0, 14 - HOST.length - String(PORT).length))}    ║
-  ╚══════════════════════════════════════════╝
+  ╔════════════════════════════════════════════════════════════╗
+  ║                 ScrobbleVault (Bun ${Bun.version})                ║
+  ╠════════════════════════════════════════════════════════════╣
+  ║  Web UI       →  http://${HOST}:${PORT}${" ".repeat(Math.max(0, 28 - HOST.length - String(PORT).length))}║
+  ║  JSON API     →  http://${HOST}:${PORT}/api${" ".repeat(Math.max(0, 24 - HOST.length - String(PORT).length))}║
+  ║  Compat API   →  http://${HOST}:${PORT}/2.0/${" ".repeat(Math.max(0, 23 - HOST.length - String(PORT).length))}║
+  ╚════════════════════════════════════════════════════════════╝
 
+  Default local user: ${seededUser.username}
   Open http://${HOST}:${PORT} in your browser to get started.
-  Go to Settings to configure your Last.fm or Libre.fm credentials.
+  Point Panoscrobbler's “Last.fm-like instance” URL at http://${HOST}:${PORT}/2.0/
   Press Ctrl+C to stop.
 `);
+
+void server;
