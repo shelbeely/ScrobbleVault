@@ -353,6 +353,15 @@ post(/^\/settings\/auth$/, async (req) => {
     ));
   }
 
+  // Libre.fm API keys must be exactly 32 characters (but are otherwise not
+  // validated server-side — users may freely invent their own key).
+  if (network === "librefm" && apiKey.length !== 32) {
+    return html(renderSettings(
+      { network, username, hasCredentials: false },
+      { type: "error", message: "Libre.fm API key must be exactly 32 characters. You can make one up — any 32-character string will work." },
+    ));
+  }
+
   try {
     const sessionKey = await getSessionKey(network, apiKey, secret, username, password);
     await saveAuth({ lastfm_network: network, lastfm_username: username,
