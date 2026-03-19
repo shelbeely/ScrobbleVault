@@ -4,12 +4,12 @@
 
 **Save your listening history from Last.fm or Libre.fm to a local SQLite database.**
 
-scrobbledb is a Python command-line tool that downloads your scrobble
-data (listening history) from Last.fm or Libre.fm and stores it in a
-SQLite database for local analysis, backup, and exploration. Built
-with modern Python tooling, it offers rich terminal output, full-text
-search, interactive browsing, and comprehensive data export
-capabilities. 
+scrobbledb is available in **two flavours**:
+
+- **Python CLI** — the original command-line tool with a rich terminal UI and interactive browser
+- **Node.js CLI + Web interface** — a full port to Node.js that adds a web browser UI (`web/`)
+
+Both implementations share the same SQLite database schema, so data ingested by one can be explored by the other.
 
 **Full disclosure, this project is primarily "auditionware".** The
 main goal is to provide something for potential external collaborators
@@ -49,7 +49,7 @@ open-source alternative that offers compatible scrobbling services.
 scrobbledb is a modernization of [Jacob
 Kaplan-Moss's](https://github.com/jacobian/)
 [lastfm-to-sqlite](https://github.com/jacobian/lastfm-to-sqlite)
-project. This version has been significantly expanded with: 
+project. The Python version has been significantly expanded with:
 
 - Modern Python tooling (uv, ruff, type hints)
 - Domain-specific commands for exploring artists, albums, tracks, and plays
@@ -59,11 +59,116 @@ project. This version has been significantly expanded with:
 - Enhanced statistics and filtering
 - Rich terminal output with tables and progress bars
 
-Original concept and implementation by Jacob Kaplan-Moss. Current development by Brian M. Dennis.
+The Node.js port adds a **web browser interface** while fully replicating the CLI feature set, using only Node.js built-in modules plus Express and better-sqlite3.
 
-## Installation
+**Original concept and implementation by [Jacob Kaplan-Moss](https://github.com/jacobian/).
+Python modernization and Node.js port by [Brian M. Dennis](https://github.com/crossjam).**
 
-scrobbledb requires Python 3.11 or later and uses [uv](https://github.com/astral-sh/uv) for dependency management.
+---
+
+## Node.js CLI + Web Interface
+
+> **Location:** `web/` directory — Node.js 18+ required
+
+### Installation
+
+```bash
+cd web
+npm install
+```
+
+### Quick Start (Node.js)
+
+```bash
+# 1. Save credentials
+node bin/scrobbledb.js auth
+
+# 2. Initialize the database
+node bin/scrobbledb.js config init
+
+# 3. Import your listening history
+node bin/scrobbledb.js ingest
+
+# 4. Explore from the terminal
+node bin/scrobbledb.js stats overview
+node bin/scrobbledb.js artists top
+node bin/scrobbledb.js search "pink floyd"
+
+# 5. Browse via web interface
+node bin/scrobbledb.js web
+# → open http://localhost:3000
+```
+
+Or start the web server directly:
+
+```bash
+SCROBBLEDB_PATH=/path/to/scrobbledb.db node web/server.js
+# or
+node web/server.js --db /path/to/scrobbledb.db --port 3000
+```
+
+### Node.js CLI Command Reference
+
+All commands accept `-d / --database <path>` to point at a custom database.
+
+#### Data management
+
+| Command | Description |
+|---------|-------------|
+| `auth` | Save Last.fm/Libre.fm credentials interactively |
+| `config init [--dry-run] [--no-index]` | Initialize database and FTS5 index |
+| `config reset [--force]` | Delete and recreate the database |
+| `config location` | Show XDG data/config directory paths |
+| `ingest [--since] [--until] [--limit]` | Fetch listening history from Last.fm |
+| `import <file> [--format auto\|jsonl\|csv\|tsv]` | Import scrobbles from a file or stdin |
+| `index` | Build or rebuild the FTS5 full-text search index |
+| `export [--preset plays\|tracks\|albums\|artists] [--format json\|jsonl\|csv\|tsv]` | Export data |
+
+#### Data exploration
+
+| Command | Description |
+|---------|-------------|
+| `search <query> [-l limit]` | Full-text search across tracks, artists, albums |
+| `stats overview` | Total scrobbles, artists, albums, tracks, date range |
+| `stats monthly [--limit n]` | Month-by-month scrobble counts |
+| `stats yearly [--limit n]` | Year-by-year scrobble counts |
+| `artists top [-l n]` | Top artists by play count |
+| `albums top [-l n]` | Top albums by play count |
+| `tracks top [-l n]` | Top tracks by play count |
+| `plays recent [-l n]` | Most recent plays |
+
+#### Advanced
+
+| Command | Description |
+|---------|-------------|
+| `sql query "<SQL>"` | Execute a raw SQL query |
+| `sql tables` | List all database tables |
+| `sql schema [table]` | Show CREATE TABLE schema |
+| `sql rows <table> [-l n]` | Show rows from a table |
+| `web [--port n]` | Start the web interface |
+
+### Web Interface Routes
+
+| Route | Description |
+|-------|-------------|
+| `/` | Home page with overview statistics |
+| `/artists` | Top artists by play count (paginated) |
+| `/albums` | Top albums by play count (paginated) |
+| `/tracks` | Top tracks by play count (paginated) |
+| `/search?q=<query>` | Full-text search |
+| `/api/stats` | JSON: overview statistics |
+| `/api/artists` | JSON: top artists |
+| `/api/albums` | JSON: top albums |
+| `/api/tracks` | JSON: top tracks |
+| `/api/search?q=<query>` | JSON: search results |
+
+---
+
+## Python CLI
+
+> **Requirements:** Python 3.11+, [uv](https://github.com/astral-sh/uv)
+
+### Installation (Python)
 
 ```bash
 # Clone the repository
@@ -77,63 +182,33 @@ uv sync
 uv run scrobbledb --help
 ```
 
-## Quick Start
-
-### 1. Save your Last.fm credentials
+### Quick Start (Python)
 
 ```bash
+# 1. Save your Last.fm credentials
 uv run scrobbledb auth
-```
 
-This prompts for your Last.fm username, API key, shared secret, and
-password, then saves them in `${APP_DIR}/auth.json`.
-
-**Getting API credentials**: Visit [Last.fm
-API](https://www.last.fm/api/account/create) to create an API account
-and obtain your API key and shared secret. 
-
-### 2. Initialize the database
-
-```bash
+# 2. Initialize the database
 uv run scrobbledb config init
-```
 
-This creates the SQLite database and sets up the full-text search index.
-
-### 3. Import your listening history
-
-```bash
+# 3. Import your listening history
 uv run scrobbledb ingest
-```
 
-This fetches your complete scrobble history from Last.fm and stores it
-locally. Depending on how many scrobbles you have, this may take
-several minutes. 
-
-### 4. Explore your data
-
-```bash
-# Search for tracks
+# 4. Explore your data
 uv run scrobbledb search "pink floyd"
-
-# View recent plays
 uv run scrobbledb plays list --limit 50
-
-# Browse interactively
-uv run scrobbledb browse
-
-# See your top artists
+uv run scrobbledb browse          # interactive TUI
 uv run scrobbledb artists top --limit 20
-
-# View statistics
 uv run scrobbledb stats overview
 ```
 
-## Command Overview
+**Getting API credentials**: Visit [Last.fm
+API](https://www.last.fm/api/account/create) to create an API account
+and obtain your API key and shared secret.
 
-scrobbledb provides a comprehensive set of commands for managing and exploring your music data:
+### Python Command Overview
 
-### Data Management
+#### Data Management
 
 - **`auth`** - Configure Last.fm/Libre.fm API credentials ([docs](docs/commands/auth.md))
 - **`config`** - Initialize database, reset data, or show configuration paths ([docs](docs/commands/config.md))
@@ -142,7 +217,7 @@ scrobbledb provides a comprehensive set of commands for managing and exploring y
 - **`index`** - Create or rebuild the full-text search index ([docs](docs/commands/index.md))
 - **`export`** - Export data in various formats with presets or custom SQL ([docs](docs/commands/export.md))
 
-### Data Exploration
+#### Data Exploration
 
 - **`search`** - Full-text search across artists, albums, and tracks ([docs](docs/commands/search.md))
 - **`browse`** - Interactive terminal UI for browsing tracks ([docs](docs/commands/browse.md))
@@ -152,7 +227,7 @@ scrobbledb provides a comprehensive set of commands for managing and exploring y
 - **`tracks`** - Search tracks, view top tracks, see play history ([docs](docs/commands/tracks.md))
 - **`stats`** - Generate listening statistics (overview, monthly, yearly) ([docs](docs/commands/stats.md))
 
-### Advanced
+#### Advanced
 
 - **`sql`** - Direct access to sqlite-utils commands for power users ([docs](docs/commands/sql.md))
 - **`version`** - Display the installed version ([docs](docs/commands/version.md))
@@ -228,6 +303,8 @@ uv run scrobbledb --database /path/to/custom.db ingest --auth /path/to/auth.json
 
 ## Development
 
+### Python
+
 scrobbledb uses modern Python development tools:
 
 - **uv** - Fast Python package manager
@@ -247,6 +324,21 @@ poe type
 
 # Run all quality checks
 poe qa
+```
+
+### Node.js
+
+The Node.js port lives in `web/` and has no build step — it's plain CommonJS.
+
+```bash
+cd web
+npm install        # install dependencies
+
+# Verify CLI
+node bin/scrobbledb.js --help
+
+# Run tests (uses a temporary database)
+node --test        # Node.js built-in test runner
 ```
 
 ## Agentic Coding Disclosure
