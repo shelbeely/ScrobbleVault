@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>scrobbledb</title>
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+<nav>
+  <a class="nav-brand" href="/">🎵 scrobbledb</a>
+  <div class="nav-links">
+    <a href="/">Home</a>
+    <a href="/artists">Artists</a>
+    <a href="/albums">Albums</a>
+    <a href="/tracks">Tracks</a>
+    <a href="/search">Search</a>
+  </div>
+  <form class="nav-search" action="/search" method="get">
+    <input type="text" name="q" placeholder="Search tracks…" aria-label="Search">
+    <button type="submit">Go</button>
+  </form>
+</nav>
+<main>
+  <h1>Welcome to scrobbledb</h1>
+  <p style="color:var(--text-muted);margin-bottom:2rem">Browse your Last.fm listening history.</p>
+  <div class="alert">
+    <strong>No database found</strong>
+    Start the server with a database path:<br><br>
+    <code>node server.js --db /path/to/scrobbledb.db</code>
+    &nbsp;or&nbsp;
+    <code>SCROBBLEDB_PATH=/path/to/scrobbledb.db node server.js</code>
+  </div>
+</main>
+<footer>Based on <strong>scrobbledb</strong> by Brian M. Dennis, originally inspired by <strong>lastfm-to-sqlite</strong> by Jacob Kaplan-Moss</footer>
+</body>
+</html>
