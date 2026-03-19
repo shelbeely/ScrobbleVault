@@ -12,3 +12,4 @@ sys.stderr
 # Bun / Node
 node_modules/
 bun.lockb
+tmp/
