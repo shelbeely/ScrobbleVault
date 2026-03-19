@@ -1,18 +1,23 @@
 {
-  "name": "web",
-  "version": "1.0.0",
-  "description": "Web interface for scrobbledb - browse your Last.fm listening history",
+  "name": "scrobbledb",
+  "version": "1.2.0",
+  "description": "Save data from last.fm/libre.fm to a SQLite database — Node.js port",
   "main": "server.js",
+  "bin": {
+    "scrobbledb": "./bin/scrobbledb.js"
+  },
   "scripts": {
     "start": "node server.js",
-    "dev": "node server.js"
+    "dev": "node server.js",
+    "cli": "node bin/scrobbledb.js"
   },
   "keywords": [],
-  "author": "",
-  "license": "ISC",
+  "author": "Brian M. Dennis <bmd@pirateninja.dev>",
+  "license": "Apache-2.0",
   "type": "commonjs",
   "dependencies": {
     "better-sqlite3": "^12.8.0",
+    "commander": "^14.0.3",
     "express": "^5.2.1"
   }
 }
