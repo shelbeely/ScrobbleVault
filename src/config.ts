@@ -5,8 +5,10 @@
  *   - Bun.file() / Bun.write() for file I/O
  *   - process.platform  for OS detection
  *   - Bun.env           for environment variables
- * No Node.js "fs", "path", "os" imports.
+ * Uses an explicit node:fs import only for cross-platform sync existence checks.
  */
+
+import { existsSync } from "node:fs";
 
 const APP_NAME = "dev.pirateninja.scrobblevault";
 const LEGACY_APP_NAME = "dev.pirateninja.scrobbledb";
@@ -34,8 +36,11 @@ export function joinPath(...parts: string[]): string {
     .replace(/[/\\]+$/, "");
 }
 
-function pathExistsSync(path: string): boolean {
-  return Bun.spawnSync(["test", "-e", path]).exitCode === 0;
+function preferPrimaryPath(primaryPath: string, legacyPath: string): string {
+  if (existsSync(primaryPath) || !existsSync(legacyPath)) {
+    return primaryPath;
+  }
+  return legacyPath;
 }
 
 /** Return the current user's home directory using environment variables. */
@@ -60,7 +65,7 @@ export async function getDataDir(): Promise<string> {
   }
   const appDir = joinPath(base, APP_NAME);
   const legacyDir = joinPath(base, LEGACY_APP_NAME);
-  const dir = !pathExistsSync(appDir) && pathExistsSync(legacyDir) ? legacyDir : appDir;
+  const dir = preferPrimaryPath(appDir, legacyDir);
   await Bun.write(joinPath(dir, ".keep"), "");
   return dir;
 }
@@ -77,22 +82,23 @@ export function getDataDirSync(): string {
   }
   const appDir = joinPath(base, APP_NAME);
   const legacyDir = joinPath(base, LEGACY_APP_NAME);
-  return !pathExistsSync(appDir) && pathExistsSync(legacyDir) ? legacyDir : appDir;
+  return preferPrimaryPath(appDir, legacyDir);
 }
 
 export function getDefaultDbPath(): string {
   const dataDir = getDataDirSync();
   const dbPath = joinPath(dataDir, DEFAULT_DB_FILE_NAME);
   const legacyDbPath = joinPath(dataDir, LEGACY_DB_FILE_NAME);
-  return !pathExistsSync(dbPath) && pathExistsSync(legacyDbPath) ? legacyDbPath : dbPath;
+  return preferPrimaryPath(dbPath, legacyDbPath);
 }
 
 export function getDefaultAuthPath(): string {
   return joinPath(getDataDirSync(), "auth.json");
 }
 
+/** Return the configured database path, preferring the new env var and falling back to the legacy name. */
 export function getConfiguredDbPath(): string | undefined {
-  return Bun.env.SCROBBLEVAULT_DB_PATH ?? Bun.env.SCROBBLEDB_PATH ?? undefined;
+  return Bun.env.SCROBBLEVAULT_DB_PATH ?? Bun.env.SCROBBLEDB_PATH;
 }
 
 // ─── Auth I/O (Bun-native) ────────────────────────────────────────────────────
@@ -119,8 +125,7 @@ function readFileSync(path: string): Uint8Array {
 /** Synchronous auth load used at startup (reads file via Bun's readFileSync shim). */
 export function loadAuth(authPath?: string): AuthData | null {
   const path = authPath ?? getDefaultAuthPath();
-  const result = Bun.spawnSync(["test", "-f", path]);
-  if (result.exitCode !== 0) return null;
+  if (!existsSync(path)) return null;
   try {
     const bytes = readFileSync(path);
     return JSON.parse(new TextDecoder().decode(bytes)) as AuthData;
