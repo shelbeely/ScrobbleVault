@@ -515,3 +515,269 @@ export function getPlays(
     )
     .all(...whereParams) as PlayRow[];
 }
+
+// ─── Streaks ──────────────────────────────────────────────────────────────────
+
+export interface StreakInfo {
+  current_streak: number;
+  longest_streak: number;
+  total_days_listened: number;
+  total_active_weeks: number;
+}
+
+export function getListeningStreak(db: Database): StreakInfo {
+  const rows = db
+    .query(`SELECT DISTINCT strftime('%Y-%m-%d', timestamp) AS day FROM plays ORDER BY day ASC`)
+    .all() as { day: string }[];
+
+  if (rows.length === 0)
+    return { current_streak: 0, longest_streak: 0, total_days_listened: 0, total_active_weeks: 0 };
+
+  const today     = new Date().toISOString().slice(0, 10);
+  const yesterday = new Date(Date.now() - 86_400_000).toISOString().slice(0, 10);
+
+  // Longest streak
+  let longestStreak = 1, tempStreak = 1;
+  for (let i = 1; i < rows.length; i++) {
+    const diff =
+      (new Date(rows[i]!.day).getTime() - new Date(rows[i - 1]!.day).getTime()) / 86_400_000;
+    if (diff === 1) { tempStreak++; longestStreak = Math.max(longestStreak, tempStreak); }
+    else            tempStreak = 1;
+  }
+
+  // Current streak (streak ending today or yesterday)
+  let currentStreak = 0;
+  const lastDay = rows[rows.length - 1]?.day;
+  if (lastDay === today || lastDay === yesterday) {
+    currentStreak = 1;
+    for (let i = rows.length - 2; i >= 0; i--) {
+      const diff =
+        (new Date(rows[i + 1]!.day).getTime() - new Date(rows[i]!.day).getTime()) / 86_400_000;
+      if (diff === 1) currentStreak++;
+      else break;
+    }
+  }
+
+  // Active weeks (distinct ISO weeks)
+  const weeks = new Set(
+    rows.map(r => {
+      const d   = new Date(r.day);
+      const jan1 = new Date(d.getFullYear(), 0, 1);
+      const wk  = Math.ceil(((d.getTime() - jan1.getTime()) / 86_400_000 + jan1.getDay() + 1) / 7);
+      return `${d.getFullYear()}-W${wk}`;
+    }),
+  );
+
+  return {
+    current_streak: currentStreak,
+    longest_streak: longestStreak,
+    total_days_listened: rows.length,
+    total_active_weeks: weeks.size,
+  };
+}
+
+// ─── Year / month counts ──────────────────────────────────────────────────────
+
+export function getScrobblesThisYear(db: Database): number {
+  const y = new Date().getFullYear();
+  const row = db.query(`SELECT COUNT(*) AS n FROM plays WHERE timestamp >= ?`).get(`${y}-01-01`) as { n: number };
+  return row?.n ?? 0;
+}
+
+export function getScrobblesThisMonth(db: Database): number {
+  const now   = new Date();
+  const start = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-01`;
+  const row   = db.query(`SELECT COUNT(*) AS n FROM plays WHERE timestamp >= ?`).get(start) as { n: number };
+  return row?.n ?? 0;
+}
+
+// ─── Daily heatmap ────────────────────────────────────────────────────────────
+
+export interface HeatmapDay {
+  date: string;  // YYYY-MM-DD
+  count: number;
+}
+
+export function getDailyHeatmap(db: Database, years = 2): HeatmapDay[] {
+  const since = new Date();
+  since.setFullYear(since.getFullYear() - years);
+  return db
+    .query(
+      `SELECT strftime('%Y-%m-%d', timestamp) AS date, COUNT(*) AS count
+       FROM plays WHERE timestamp >= ?
+       GROUP BY date ORDER BY date ASC`,
+    )
+    .all(since.toISOString()) as HeatmapDay[];
+}
+
+// ─── Artist universe graph ────────────────────────────────────────────────────
+
+export interface GraphNode {
+  id: string;
+  name: string;
+  play_count: number;
+  first_heard: string | null;
+  last_played: string | null;
+  is_core: boolean;
+  is_forgotten: boolean;
+  cluster: number;
+}
+
+export interface GraphEdge {
+  source: string;
+  target: string;
+  weight: number;
+}
+
+export interface ArtistGraph {
+  nodes: GraphNode[];
+  edges: GraphEdge[];
+}
+
+export function getArtistGraph(db: Database, limit = 80): ArtistGraph {
+  // Top artists by play count
+  const raw = db
+    .query(
+      `SELECT artists.id AS id, artists.name AS name,
+         COUNT(plays.timestamp) AS play_count,
+         MIN(plays.timestamp)   AS first_heard,
+         MAX(plays.timestamp)   AS last_played
+       FROM artists
+       JOIN albums  ON albums.artist_id = artists.id
+       JOIN tracks  ON tracks.album_id  = albums.id
+       JOIN plays   ON plays.track_id   = tracks.id
+       GROUP BY artists.id
+       ORDER BY play_count DESC
+       LIMIT ?`,
+    )
+    .all(limit) as Omit<GraphNode, "is_core" | "is_forgotten" | "cluster">[];
+
+  if (raw.length === 0) return { nodes: [], edges: [] };
+
+  const nodeIds = raw.map(n => n.id);
+  const ph      = nodeIds.map(() => "?").join(",");
+
+  // Co-listening edges: days where two artists were both listened to
+  const edges = db
+    .query(
+      `SELECT a1.aid AS source, a2.aid AS target, COUNT(*) AS weight
+       FROM (
+         SELECT DISTINCT artists.id AS aid, strftime('%Y-%m-%d', plays.timestamp) AS day
+         FROM plays
+         JOIN tracks  ON plays.track_id  = tracks.id
+         JOIN albums  ON tracks.album_id = albums.id
+         JOIN artists ON albums.artist_id = artists.id
+         WHERE artists.id IN (${ph})
+       ) a1
+       JOIN (
+         SELECT DISTINCT artists.id AS aid, strftime('%Y-%m-%d', plays.timestamp) AS day
+         FROM plays
+         JOIN tracks  ON plays.track_id  = tracks.id
+         JOIN albums  ON tracks.album_id = albums.id
+         JOIN artists ON albums.artist_id = artists.id
+         WHERE artists.id IN (${ph})
+       ) a2 ON a1.day = a2.day AND a1.aid < a2.aid
+       GROUP BY a1.aid, a2.aid
+       HAVING weight >= 2
+       ORDER BY weight DESC
+       LIMIT 400`,
+    )
+    .all(...nodeIds, ...nodeIds) as GraphEdge[];
+
+  // ── Union-Find clustering (iterative path-halving) ──────────────────────────
+  const parent = new Map<string, string>();
+  for (const n of raw) parent.set(n.id, n.id);
+
+  const find = (x: string): string => {
+    while (parent.get(x) !== x) {
+      const gp = parent.get(parent.get(x)!)!;
+      parent.set(x, gp);
+      x = gp;
+    }
+    return x;
+  };
+  const union = (a: string, b: string) => { parent.set(find(a), find(b)); };
+  for (const e of edges.slice(0, 200)) union(e.source, e.target);
+
+  const clusterMap = new Map<string, number>();
+  let nextCluster = 0;
+  for (const n of raw) {
+    const root = find(n.id);
+    if (!clusterMap.has(root)) clusterMap.set(root, nextCluster++);
+  }
+
+  // Thresholds
+  const sorted      = [...raw].sort((a, b) => b.play_count - a.play_count);
+  const coreThresh  = sorted[Math.floor(sorted.length * 0.25)]?.play_count ?? 0;
+  const medianPlays = sorted[Math.floor(sorted.length / 2)]?.play_count ?? 0;
+  const cutoff180   = new Date(Date.now() - 180 * 86_400_000).toISOString();
+
+  const nodes: GraphNode[] = raw.map(n => ({
+    ...n,
+    is_core:      n.play_count >= coreThresh,
+    is_forgotten: !!n.last_played && n.last_played < cutoff180 && n.play_count > medianPlays,
+    cluster:      clusterMap.get(find(n.id)) ?? 0,
+  }));
+
+  return { nodes, edges };
+}
+
+// ─── Taste drift / DNA ────────────────────────────────────────────────────────
+
+export interface TasteDrift {
+  era_label: string;
+  current_top: { name: string; plays: number }[];
+  year_ago_top: { name: string; plays: number }[];
+  new_artists: string[];
+  drifted_away: string[];
+  consistency_score: number;
+}
+
+export function getTasteDrift(db: Database): TasteDrift {
+  const now     = new Date();
+  const since30 = new Date(now.getTime() - 30  * 86_400_000).toISOString();
+  const ya_s    = new Date(now.getTime() - 395 * 86_400_000).toISOString();
+  const ya_e    = new Date(now.getTime() - 335 * 86_400_000).toISOString();
+
+  const topArtistsSince = (s: string, e?: string) =>
+    db
+      .query(
+        `SELECT artists.name, COUNT(*) AS plays
+         FROM plays
+         JOIN tracks  ON plays.track_id  = tracks.id
+         JOIN albums  ON tracks.album_id = albums.id
+         JOIN artists ON albums.artist_id = artists.id
+         WHERE plays.timestamp >= ?${e ? " AND plays.timestamp <= ?" : ""}
+         GROUP BY artists.id ORDER BY plays DESC LIMIT 10`,
+      )
+      .all(...(e ? [s, e] : [s])) as { name: string; plays: number }[];
+
+  const current  = topArtistsSince(since30);
+  const yearAgo  = topArtistsSince(ya_s, ya_e);
+
+  const curSet  = new Set(current.map(a => a.name));
+  const pastSet = new Set(yearAgo.map(a => a.name));
+
+  const newArtists  = current.filter(a => !pastSet.has(a.name)).map(a => a.name);
+  const driftedAway = yearAgo.filter(a => !curSet.has(a.name)).map(a => a.name);
+  const overlap     = current.filter(a => pastSet.has(a.name)).length;
+  const consistency = current.length > 0 ? Math.round((overlap / current.length) * 100) : 0;
+
+  let eraLabel = "discovery era";
+  if (current[0]) {
+    const top1 = current[0].name;
+    if      (consistency > 70)          eraLabel = `deep in your ${top1} era`;
+    else if (newArtists.length > 5)     eraLabel = `new horizons era`;
+    else if (driftedAway.length > 5)    eraLabel = `transitional era`;
+    else                                eraLabel = `${top1} era`;
+  }
+
+  return {
+    era_label:        eraLabel,
+    current_top:      current,
+    year_ago_top:     yearAgo,
+    new_artists:      newArtists,
+    drifted_away:     driftedAway,
+    consistency_score: consistency,
+  };
+}

@@ -17,6 +17,12 @@ import {
   getPlays,
   searchTracks,
   parseRelativeDate,
+  getListeningStreak,
+  getScrobblesThisYear,
+  getScrobblesThisMonth,
+  getDailyHeatmap,
+  getArtistGraph,
+  getTasteDrift,
 } from "../queries";
 import { initSchema, setupFts5, upsertBatch, getLatestTimestamp } from "../db";
 import { recentTracks, getRecentTracksCount } from "../lastfm";
@@ -35,6 +41,9 @@ import {
   renderSearch,
   renderSettings,
   renderIngest,
+  renderUniverse,
+  renderTimeline,
+  renderTaste,
 } from "./templates";
 
 const PAGE_SIZE = 50;
@@ -114,12 +123,21 @@ export function routeRequest(req: Request, db: Database): Promise<Response> | Re
   return html("<h1>404 Not Found</h1>", 404);
 }
 
-// ─── Dashboard ────────────────────────────────────────────────────────────────
+// ─── Brain (enhanced dashboard) ──────────────────────────────────────────────
 
 get(/^\/$/, (_req, _url, db) => {
-  const stats = getOverviewStats(db);
+  const stats      = getOverviewStats(db);
   const topArtists = getTopArtists(db, { limit: 10 });
-  return html(renderDashboard(stats as unknown as Record<string, unknown>, topArtists as unknown as Record<string, unknown>[]));
+  const streak     = getListeningStreak(db);
+  const thisYear   = getScrobblesThisYear(db);
+  const thisMonth  = getScrobblesThisMonth(db);
+  return html(renderDashboard(
+    stats as unknown as Record<string, unknown>,
+    topArtists as unknown as Record<string, unknown>[],
+    streak,
+    thisYear,
+    thisMonth,
+  ));
 });
 
 // ─── Artists ─────────────────────────────────────────────────────────────────
@@ -449,4 +467,39 @@ get(/^\/api\/search$/, (_req, url, db) => {
   const q = qp(url, "q", "").trim();
   if (!q) return json({ error: "query param q is required" }, 400);
   return json(searchTracks(db, q, qpInt(url, "limit", 50)));
+});
+
+// ─── Artist Universe Map ──────────────────────────────────────────────────────
+
+get(/^\/universe$/, (_req, _url, db) => {
+  const graph = getArtistGraph(db, 80);
+  return html(renderUniverse(JSON.stringify(graph), graph.nodes.length, graph.edges.length));
+});
+
+get(/^\/api\/universe$/, (_req, url, db) => {
+  const limit = qpInt(url, "limit", 80);
+  return json(getArtistGraph(db, limit));
+});
+
+// ─── Timeline heatmap ─────────────────────────────────────────────────────────
+
+get(/^\/timeline$/, (_req, _url, db) => {
+  const heatmap = getDailyHeatmap(db, 2);
+  return html(renderTimeline(JSON.stringify(heatmap)));
+});
+
+get(/^\/api\/heatmap$/, (_req, url, db) => {
+  const years = qpInt(url, "years", 2);
+  return json(getDailyHeatmap(db, years));
+});
+
+// ─── Taste DNA ────────────────────────────────────────────────────────────────
+
+get(/^\/taste$/, (_req, _url, db) => {
+  const drift = getTasteDrift(db);
+  return html(renderTaste(drift));
+});
+
+get(/^\/api\/taste$/, (_req, _url, db) => {
+  return json(getTasteDrift(db));
 });

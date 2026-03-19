@@ -77,12 +77,52 @@ footer{background:#1a1d27;border-top:1px solid #2a2d3e;padding:.75rem 1.5rem;fon
 .filter-bar select{background:#1a1d27;border:1px solid #2a2d3e;border-radius:.375rem;padding:.4rem .6rem;color:#e2e8f0;font-size:.8rem;outline:none}
 .filter-bar select:focus{border-color:#7c9ef8}
 .filter-bar label{font-size:.8rem;color:#64748b}
-@media(max-width:640px){.form-row{grid-template-columns:1fr}.stat-grid{grid-template-columns:1fr 1fr}}
+/* ── Brain / Universe / Timeline / Taste ── */
+.brain-hero{background:linear-gradient(135deg,#1a1d27 0%,#0f1117 100%);border:1px solid #2a2d3e;border-radius:.75rem;padding:1.5rem;margin-bottom:1.25rem}
+.brain-era{font-size:1.1rem;color:#a5bbff;font-style:italic;margin-bottom:1rem}
+.cluster-chips{display:flex;flex-wrap:wrap;gap:.5rem;margin:.75rem 0}
+.cluster-chip{padding:.35rem .75rem;border-radius:999px;font-size:.8rem;font-weight:600;opacity:.9}
+.explore-links{display:flex;gap:.75rem;flex-wrap:wrap;margin-top:1.25rem}
+.explore-card{background:#1a1d27;border:1px solid #2a2d3e;border-radius:.5rem;padding:1rem 1.25rem;text-align:center;flex:1;min-width:140px;transition:border-color .15s,transform .15s;cursor:pointer;text-decoration:none;display:block;color:#e2e8f0}
+.explore-card:hover{border-color:#7c9ef8;transform:translateY(-2px);text-decoration:none;color:#e2e8f0}
+.explore-card .ec-icon{font-size:1.8rem;display:block;margin-bottom:.4rem}
+.explore-card .ec-label{font-size:.8rem;color:#94a3b8;text-transform:uppercase;letter-spacing:.05em}
+.explore-card .ec-title{font-size:.95rem;font-weight:600;margin-top:.15rem}
+#universe-wrap{position:relative;background:#1a1d27;border:1px solid #2a2d3e;border-radius:.5rem;overflow:hidden}
+#universe-canvas{display:block;width:100%;cursor:grab}
+#universe-canvas:active{cursor:grabbing}
+#universe-tooltip{position:fixed;background:#0f1117;border:1px solid #2a2d3e;border-radius:.375rem;padding:.6rem .85rem;font-size:.8rem;pointer-events:none;display:none;z-index:100;max-width:200px;line-height:1.5}
+.universe-legend{display:flex;flex-wrap:wrap;gap:.5rem;margin-top:.75rem;font-size:.75rem}
+.universe-legend span{display:flex;align-items:center;gap:.35rem;color:#94a3b8}
+.universe-legend i{width:10px;height:10px;border-radius:50%;display:inline-block}
+.heatmap-outer{overflow-x:auto;padding-bottom:.5rem}
+.heatmap-year-label{font-size:.85rem;color:#64748b;margin-bottom:.4rem;font-weight:600}
+.heatmap-months{display:grid;grid-auto-flow:column;grid-auto-columns:14px;gap:2px;margin-bottom:2px;font-size:.65rem;color:#475569;height:14px}
+.heatmap-grid{display:grid;grid-template-rows:repeat(7,12px);grid-auto-flow:column;grid-auto-columns:12px;gap:2px}
+.heatmap-cell{width:12px;height:12px;border-radius:2px;cursor:default;transition:opacity .1s}
+.heatmap-cell:hover{opacity:.7;outline:1px solid #7c9ef8}
+.taste-compare{display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-bottom:1.25rem}
+.taste-col h3{font-size:.8rem;text-transform:uppercase;letter-spacing:.05em;color:#64748b;margin-bottom:.6rem}
+.taste-bar-wrap{margin-bottom:.35rem}
+.taste-bar-label{display:flex;justify-content:space-between;font-size:.8rem;color:#94a3b8;margin-bottom:.15rem}
+.taste-bar-track{background:#1e2132;border-radius:999px;height:6px;overflow:hidden}
+.taste-bar-fill{height:6px;border-radius:999px;background:#7c9ef8;transition:width .4s}
+.drift-chip{display:inline-block;padding:.2rem .6rem;border-radius:999px;font-size:.75rem;font-weight:500;margin:.2rem .15rem}
+.drift-new{background:#14532d;color:#4ade80}
+.drift-away{background:#431407;color:#fb923c}
+.era-card{background:linear-gradient(135deg,#1e3a5f,#1a1d27);border:1px solid #1e40af;border-radius:.75rem;padding:1.5rem;margin-bottom:1.25rem}
+.era-label{font-size:1.4rem;font-weight:700;color:#a5bbff;margin-bottom:.35rem}
+.consistency-ring{display:inline-flex;align-items:center;gap:.75rem;background:#0f1117;border:1px solid #2a2d3e;border-radius:.5rem;padding:.6rem 1rem;font-size:.85rem;color:#94a3b8}
+.consistency-ring .score{font-size:1.4rem;font-weight:700;color:#7c9ef8}
+@media(max-width:640px){.form-row{grid-template-columns:1fr}.stat-grid{grid-template-columns:1fr 1fr}.taste-compare{grid-template-columns:1fr}}
 `;
 
 function navHtml(active: string): string {
   const links = [
-    ["/", "Dashboard", "🏠"],
+    ["/", "Brain", "🧠"],
+    ["/universe", "Universe", "🌌"],
+    ["/timeline", "Timeline", "📅"],
+    ["/taste", "Taste DNA", "🧬"],
     ["/plays", "Plays", "🎵"],
     ["/artists", "Artists", "🎤"],
     ["/albums", "Albums", "💿"],
@@ -160,24 +200,78 @@ function paginationHtml(base: string, page: number, totalPages: number): string 
   return `<div class="pagination">${prev}<span class="current">${page} / ${totalPages}</span>${next}</div>`;
 }
 
-// ─── Dashboard ────────────────────────────────────────────────────────────────
+// ─── Brain (enhanced dashboard) ──────────────────────────────────────────────
 
-export function renderDashboard(stats: Record<string, unknown>, topArtists: Record<string, unknown>[]): string {
+const CLUSTER_COLORS = [
+  "#7c9ef8","#f87c9e","#9ef87c","#f8c97c",
+  "#c47cf8","#7cf8e6","#f87c7c","#f8f07c","#f89e7c","#7ca8f8",
+];
+
+export function renderDashboard(
+  stats: Record<string, unknown>,
+  topArtists: Record<string, unknown>[],
+  streak?: { current_streak: number; longest_streak: number; total_days_listened: number; total_active_weeks: number },
+  thisYear?: number,
+  thisMonth?: number,
+): string {
+  const streakData = streak ?? { current_streak: 0, longest_streak: 0, total_days_listened: 0, total_active_weeks: 0 };
+
+  // Top-6 artists → taste cluster chips
+  const clusterChips = topArtists.slice(0, 6).map((a, i) => {
+    const color = CLUSTER_COLORS[i % CLUSTER_COLORS.length]!;
+    return `<span class="cluster-chip" style="background:${color}22;color:${color};border:1px solid ${color}44">${escHtml(a.artist_name)}</span>`;
+  }).join("");
+
   const body = `
-    <h1 class="page-title"><span class="icon">🏠</span> Dashboard</h1>
-    <div class="stat-grid">
-      <div class="stat-card"><div class="value">${fmtNum(stats.total_scrobbles as number)}</div><div class="label">Total Plays</div></div>
-      <div class="stat-card"><div class="value">${fmtNum(stats.unique_artists as number)}</div><div class="label">Artists</div></div>
-      <div class="stat-card"><div class="value">${fmtNum(stats.unique_albums as number)}</div><div class="label">Albums</div></div>
-      <div class="stat-card"><div class="value">${fmtNum(stats.unique_tracks as number)}</div><div class="label">Tracks</div></div>
+    <div class="brain-hero">
+      <h1 style="font-size:1.6rem;font-weight:700;margin-bottom:.25rem">🧠 Your Music Brain</h1>
+      ${stats.first_scrobble
+        ? `<p class="brain-era">Listening since <strong style="color:#e2e8f0">${fmtDate(stats.first_scrobble as string)}</strong></p>`
+        : `<p class="brain-era">No data yet — <a href="/ingest">import your history</a> to get started.</p>`}
+      <div class="stat-grid" style="margin-bottom:.75rem">
+        <div class="stat-card"><div class="value">${fmtNum(stats.total_scrobbles as number)}</div><div class="label">Lifetime Plays</div></div>
+        <div class="stat-card"><div class="value">${fmtNum(thisYear ?? 0)}</div><div class="label">This Year</div></div>
+        <div class="stat-card"><div class="value">${fmtNum(thisMonth ?? 0)}</div><div class="label">This Month</div></div>
+        <div class="stat-card"><div class="value">${fmtNum(stats.unique_artists as number)}</div><div class="label">Unique Artists</div></div>
+        <div class="stat-card"><div class="value">${fmtNum(stats.unique_albums as number)}</div><div class="label">Albums</div></div>
+        <div class="stat-card"><div class="value">${fmtNum(stats.unique_tracks as number)}</div><div class="label">Tracks</div></div>
+      </div>
+      <div class="stat-grid" style="margin-bottom:.75rem">
+        <div class="stat-card"><div class="value" style="color:#4ade80">${streakData.current_streak}</div><div class="label">🔥 Day Streak</div></div>
+        <div class="stat-card"><div class="value">${streakData.longest_streak}</div><div class="label">Longest Streak</div></div>
+        <div class="stat-card"><div class="value">${fmtNum(streakData.total_days_listened)}</div><div class="label">Days Active</div></div>
+        <div class="stat-card"><div class="value">${fmtNum(streakData.total_active_weeks)}</div><div class="label">Weeks Active</div></div>
+      </div>
+      ${topArtists.length > 0 ? `
+      <p style="font-size:.75rem;color:#64748b;text-transform:uppercase;letter-spacing:.05em;margin-bottom:.4rem">Your Taste Identity</p>
+      <div class="cluster-chips">${clusterChips}</div>` : ""}
     </div>
-    ${stats.first_scrobble ? `<p style="color:#64748b;font-size:.85rem;margin-bottom:1.5rem">Listening history from <strong style="color:#94a3b8">${fmtDate(stats.first_scrobble as string)}</strong> to <strong style="color:#94a3b8">${fmtDate(stats.last_scrobble as string)}</strong></p>` : ""}
-    <div style="display:flex;gap:1rem;flex-wrap:wrap;margin-bottom:1.5rem">
-      <a href="/ingest" class="btn btn-success">⬇ Import New Scrobbles</a>
-      <a href="/search" class="btn btn-outline">🔍 Search</a>
+
+    <div class="explore-links" style="margin-bottom:1.5rem">
+      <a href="/universe" class="explore-card">
+        <span class="ec-icon">🌌</span>
+        <div class="ec-label">Killer Feature</div>
+        <div class="ec-title">Artist Universe Map</div>
+      </a>
+      <a href="/timeline" class="explore-card">
+        <span class="ec-icon">📅</span>
+        <div class="ec-label">Listening History</div>
+        <div class="ec-title">Timeline Heatmap</div>
+      </a>
+      <a href="/taste" class="explore-card">
+        <span class="ec-icon">🧬</span>
+        <div class="ec-label">Who You Are</div>
+        <div class="ec-title">Taste DNA</div>
+      </a>
+      <a href="/ingest" class="explore-card">
+        <span class="ec-icon">⬇</span>
+        <div class="ec-label">Stay Up to Date</div>
+        <div class="ec-title">Import Scrobbles</div>
+      </a>
     </div>
+
     ${topArtists.length > 0 ? `
-    <h2 style="font-size:1rem;color:#94a3b8;margin-bottom:.75rem;text-transform:uppercase;letter-spacing:.05em">Top Artists (All Time)</h2>
+    <h2 style="font-size:.85rem;color:#64748b;margin-bottom:.6rem;text-transform:uppercase;letter-spacing:.05em">Top Artists (All Time)</h2>
     <div class="table-wrap">
       <table>
         <thead><tr><th>#</th><th>Artist</th><th class="num">Plays</th><th class="num">%</th></tr></thead>
@@ -192,9 +286,9 @@ export function renderDashboard(stats: Record<string, unknown>, topArtists: Reco
       </table>
     </div>
     <a href="/artists" style="font-size:.85rem">See all artists →</a>
-    ` : `<div class="empty"><div class="icon">🎵</div><p>No data yet. <a href="/ingest">Import your listening history</a> to get started.</p></div>`}
+    ` : ""}
   `;
-  return layout({ title: "Dashboard", active: "/", body });
+  return layout({ title: "Music Brain", active: "/", body });
 }
 
 // ─── Artists ─────────────────────────────────────────────────────────────────
@@ -636,4 +730,346 @@ export function renderIngest(
     </script>
   `;
   return layout({ title: "Import Scrobbles", active: "/", body, flash });
+}
+
+// ─── Artist Universe Map ──────────────────────────────────────────────────────
+
+export function renderUniverse(graphJson: string, nodeCount: number, edgeCount: number): string {
+  const body = `
+    <h1 class="page-title"><span class="icon">🌌</span> Artist Universe Map</h1>
+    <p style="color:#64748b;font-size:.875rem;margin-bottom:.75rem">
+      ${fmtNum(nodeCount)} artists &nbsp;·&nbsp; ${fmtNum(edgeCount)} connections
+      &nbsp;·&nbsp; Node size = play count &nbsp;·&nbsp; Color = cluster &nbsp;·&nbsp; Hover for details
+    </p>
+    <div style="display:flex;gap:.5rem;flex-wrap:wrap;margin-bottom:.75rem;font-size:.8rem;align-items:center">
+      <span style="color:#64748b">Highlight:</span>
+      <button id="btn-core" class="btn btn-outline" style="padding:.3rem .75rem;font-size:.75rem">★ Core artists</button>
+      <button id="btn-forgotten" class="btn btn-outline" style="padding:.3rem .75rem;font-size:.75rem">⚠ Forgotten artists</button>
+      <button id="btn-reset" class="btn" style="padding:.3rem .75rem;font-size:.75rem;background:#2a2d3e;color:#94a3b8">Reset</button>
+      <label style="color:#64748b;margin-left:.5rem">Zoom: <input type="range" id="zoom-slider" min="0.2" max="4" step="0.1" value="1" style="width:80px;vertical-align:middle"></label>
+    </div>
+    <div id="universe-wrap">
+      <svg id="universe-canvas" height="620"></svg>
+      <div id="universe-tooltip"></div>
+    </div>
+    <div class="universe-legend" id="universe-legend"></div>
+    <p style="color:#475569;font-size:.75rem;margin-top:.6rem">
+      ★ white ring = core identity artists &nbsp;·&nbsp; faded = forgotten artists (not played in 6+ months) &nbsp;·&nbsp; drag nodes to rearrange &nbsp;·&nbsp; scroll to zoom
+    </p>
+
+    <script src="https://cdn.jsdelivr.net/npm/d3@7/dist/d3.min.js" integrity="sha384-CjloA8y00+1SDAUkjs099PVfnY2KmDC2BZnws9kh8D/lX1s46w6EPhpXdqMfjK6i" crossorigin="anonymous"></script>
+    <script>
+    (function() {
+      const COLORS = ['#7c9ef8','#f87c9e','#9ef87c','#f8c97c','#c47cf8','#7cf8e6','#f87c7c','#f8f07c','#f89e7c','#7ca8f8'];
+      let zoomBehavior, svgSel, currentTransform = d3.zoomIdentity;
+
+      function init() {
+        const graphData = ${graphJson};
+        const nodes = graphData.nodes || [];
+        const edges = graphData.edges || [];
+        if (!nodes.length) {
+          document.getElementById('universe-canvas').innerHTML = '<text x="50%" y="50%" text-anchor="middle" fill="#475569" dy=".3em">No data yet — import your scrobble history first.</text>';
+          return;
+        }
+
+        const wrap   = document.getElementById('universe-wrap');
+        const width  = wrap.clientWidth || 900;
+        const height = 620;
+        const maxPlays = d3.max(nodes, d => d.play_count) || 1;
+        const r = d => 4 + Math.sqrt(d.play_count / maxPlays) * 22;
+
+        svgSel = d3.select('#universe-canvas')
+          .attr('width', width).attr('height', height)
+          .attr('viewBox', [0, 0, width, height]);
+
+        const g = svgSel.append('g');
+
+        zoomBehavior = d3.zoom()
+          .scaleExtent([0.1, 12])
+          .on('zoom', e => { currentTransform = e.transform; g.attr('transform', e.transform); });
+        svgSel.call(zoomBehavior);
+
+        const sim = d3.forceSimulation(nodes)
+          .force('link', d3.forceLink(edges).id(d => d.id).strength(e => Math.min(e.weight / 25, 0.4)).distance(80))
+          .force('charge', d3.forceManyBody().strength(-180))
+          .force('center', d3.forceCenter(width / 2, height / 2))
+          .force('collision', d3.forceCollide().radius(d => r(d) + 4));
+
+        const linkG = g.append('g').attr('class','links');
+        const nodeG = g.append('g').attr('class','nodes');
+
+        const link = linkG.selectAll('line').data(edges).join('line')
+          .attr('stroke','#2a2d3e').attr('stroke-opacity', e => Math.min(0.9, 0.2 + e.weight/20))
+          .attr('stroke-width', e => Math.max(0.5, Math.sqrt(e.weight)));
+
+        const node = nodeG.selectAll('g').data(nodes).join('g').style('cursor','pointer')
+          .call(d3.drag()
+            .on('start', (e,d) => { if(!e.active) sim.alphaTarget(0.3).restart(); d.fx=d.x; d.fy=d.y; })
+            .on('drag',  (e,d) => { d.fx=e.x; d.fy=e.y; })
+            .on('end',   (e,d) => { if(!e.active) sim.alphaTarget(0); d.fx=null; d.fy=null; }));
+
+        node.append('circle')
+          .attr('r', r)
+          .attr('fill', d => COLORS[d.cluster % COLORS.length])
+          .attr('opacity', d => d.is_forgotten ? 0.3 : 0.9)
+          .attr('stroke', d => d.is_core ? '#fff' : 'none')
+          .attr('stroke-width', d => d.is_core ? 2 : 0)
+          .attr('stroke-dasharray', d => d.is_forgotten ? '3,2' : 'none');
+
+        // Label for large nodes only
+        node.filter(d => d.play_count >= maxPlays * 0.1).append('text')
+          .text(d => d.name.length > 14 ? d.name.slice(0,13)+'…' : d.name)
+          .attr('text-anchor','middle').attr('dy','0.35em')
+          .attr('font-size', d => Math.max(8, Math.min(12, r(d) * 0.65)))
+          .attr('fill','#e2e8f0').attr('pointer-events','none')
+          .style('text-shadow','0 0 4px #0f1117');
+
+        // Tooltip
+        const tip = document.getElementById('universe-tooltip');
+        node.on('mouseover', (e, d) => {
+          tip.style.display = 'block';
+          tip.innerHTML = '<strong style="color:#e2e8f0">' + d.name + '</strong><br>'
+            + d.play_count.toLocaleString() + ' plays<br>'
+            + 'First heard: ' + (d.first_heard ? d.first_heard.slice(0,10) : '?') + '<br>'
+            + 'Last played: ' + (d.last_played ? d.last_played.slice(0,10) : '?')
+            + (d.is_forgotten ? '<br><span style="color:#fb923c">⚠ Forgotten artist</span>' : '')
+            + (d.is_core     ? '<br><span style="color:#f8c97c">★ Core identity artist</span>' : '');
+          moveTip(e);
+        }).on('mousemove', moveTip).on('mouseout', () => { tip.style.display = 'none'; });
+
+        function moveTip(e) {
+          tip.style.left = (e.clientX + 14) + 'px';
+          tip.style.top  = (e.clientY - 10) + 'px';
+        }
+
+        sim.on('tick', () => {
+          link.attr('x1',d=>d.source.x).attr('y1',d=>d.source.y)
+              .attr('x2',d=>d.target.x).attr('y2',d=>d.target.y);
+          node.attr('transform',d=>'translate('+d.x+','+d.y+')');
+        });
+
+        // Legend: unique clusters
+        const clusterNames = {};
+        nodes.forEach(n => { if(!clusterNames[n.cluster]) clusterNames[n.cluster] = n.name; });
+        const leg = document.getElementById('universe-legend');
+        Object.entries(clusterNames).slice(0,8).forEach(([ci, name]) => {
+          const c = COLORS[+ci % COLORS.length];
+          leg.innerHTML += '<span><i style="background:'+c+'"></i>' + name + ' cluster</span>';
+        });
+
+        // Controls
+        document.getElementById('btn-core').onclick = () => {
+          node.selectAll('circle').attr('opacity', d => d.is_core ? 0.95 : 0.15);
+        };
+        document.getElementById('btn-forgotten').onclick = () => {
+          node.selectAll('circle').attr('opacity', d => d.is_forgotten ? 0.95 : 0.15);
+        };
+        document.getElementById('btn-reset').onclick = () => {
+          node.selectAll('circle').attr('opacity', d => d.is_forgotten ? 0.3 : 0.9);
+        };
+        document.getElementById('zoom-slider').oninput = function() {
+          const t = d3.zoomIdentity.translate(currentTransform.x, currentTransform.y).scale(+this.value);
+          svgSel.call(zoomBehavior.transform, t);
+        };
+      }
+      init();
+    })();
+    </script>
+  `;
+  return layout({ title: "Artist Universe Map", active: "/universe", body });
+}
+
+// ─── Timeline heatmap ─────────────────────────────────────────────────────────
+
+export function renderTimeline(heatmapJson: string): string {
+  const body = `
+    <h1 class="page-title"><span class="icon">📅</span> Listening Timeline</h1>
+    <p style="color:#64748b;font-size:.875rem;margin-bottom:1.25rem">Your listening activity over the past 2 years — darker = more plays that day.</p>
+    <div id="heatmap-container"></div>
+    <div style="display:flex;align-items:center;gap:.5rem;margin-top:1rem;font-size:.75rem;color:#475569">
+      <span>Less</span>
+      <span style="display:flex;gap:2px">
+        <span style="width:12px;height:12px;border-radius:2px;background:#1a1d27;display:inline-block"></span>
+        <span style="width:12px;height:12px;border-radius:2px;background:#1e3a5f;display:inline-block"></span>
+        <span style="width:12px;height:12px;border-radius:2px;background:#1d4ed8;display:inline-block"></span>
+        <span style="width:12px;height:12px;border-radius:2px;background:#7c9ef8;display:inline-block"></span>
+        <span style="width:12px;height:12px;border-radius:2px;background:#a5bbff;display:inline-block"></span>
+      </span>
+      <span>More</span>
+    </div>
+    <script>
+    (function() {
+      const days = ${heatmapJson};
+      const el   = document.getElementById('heatmap-container');
+
+      const map = {};
+      let maxCount = 0;
+      days.forEach(d => { map[d.date] = d.count; if(d.count > maxCount) maxCount = d.count; });
+
+      function color(n) {
+        if (!n) return '#1a1d27';
+        const ratio = Math.log(n + 1) / Math.log(maxCount + 1);
+        if (ratio < 0.2) return '#1e3a5f';
+        if (ratio < 0.4) return '#1d4ed8';
+        if (ratio < 0.65) return '#2563eb';
+        if (ratio < 0.85) return '#7c9ef8';
+        return '#a5bbff';
+      }
+
+      // Build weeks array: start from 2 years ago (Sunday-aligned)
+      const end   = new Date();
+      const start = new Date(end);
+      start.setFullYear(start.getFullYear() - 2);
+      start.setDate(start.getDate() - start.getDay()); // align to Sunday
+
+      const weeks = [];
+      const cur = new Date(start);
+      while (cur <= end) {
+        const week = [];
+        for (let d = 0; d < 7; d++) {
+          week.push(new Date(cur));
+          cur.setDate(cur.getDate() + 1);
+        }
+        weeks.push(week);
+      }
+
+      const DAY_NAMES = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+      const MONTH_NAMES = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+
+      // Group weeks by year for display
+      const years = {};
+      weeks.forEach((wk, wi) => {
+        const yr = wk[0].getFullYear();
+        if (!years[yr]) years[yr] = { startWi: wi, weeks: [] };
+        years[yr].weeks.push({ wi, wk });
+      });
+
+      let html = '';
+      Object.entries(years).forEach(([yr, yd]) => {
+        const ywks = yd.weeks;
+        html += '<div style="margin-bottom:1.5rem"><div class="heatmap-year-label">' + yr + '</div>';
+
+        // Month labels
+        html += '<div style="display:flex;margin-bottom:2px;">';
+        html += '<div style="width:24px;flex-shrink:0"></div>'; // day label space
+        let lastM = -1;
+        ywks.forEach(({wk}) => {
+          const m = wk[0].getMonth();
+          if (m !== lastM) { html += '<span style="font-size:.65rem;color:#475569;width:14px;white-space:nowrap">' + MONTH_NAMES[m] + '</span>'; lastM = m; }
+          else html += '<span style="width:14px"></span>';
+        });
+        html += '</div>';
+
+        // Grid
+        html += '<div style="display:flex;gap:0">';
+        html += '<div style="display:flex;flex-direction:column;gap:2px;margin-right:2px;">';
+        [0,1,2,3,4,5,6].forEach(d => {
+          html += '<div style="height:12px;width:22px;font-size:.6rem;color:#475569;line-height:12px;text-align:right;padding-right:2px">' + (d%2===1?DAY_NAMES[d]:'') + '</div>';
+        });
+        html += '</div>';
+
+        // Week columns
+        ywks.forEach(({wk}) => {
+          html += '<div style="display:flex;flex-direction:column;gap:2px;margin-right:2px">';
+          wk.forEach(day => {
+            const ds = day.toISOString().slice(0,10);
+            const cnt = map[ds] || 0;
+            html += '<div class="heatmap-cell" style="background:' + color(cnt) + '" title="' + ds + ': ' + cnt + ' plays"></div>';
+          });
+          html += '</div>';
+        });
+        html += '</div></div>';
+      });
+
+      el.innerHTML = '<div class="heatmap-outer">' + html + '</div>';
+    })();
+    </script>
+  `;
+  return layout({ title: "Listening Timeline", active: "/timeline", body });
+}
+
+// ─── Taste DNA ────────────────────────────────────────────────────────────────
+
+export function renderTaste(drift: {
+  era_label: string;
+  current_top: { name: string; plays: number }[];
+  year_ago_top: { name: string; plays: number }[];
+  new_artists: string[];
+  drifted_away: string[];
+  consistency_score: number;
+}): string {
+  const maxCur  = drift.current_top[0]?.plays  || 1;
+  const maxPast = drift.year_ago_top[0]?.plays || 1;
+
+  const barRow = (name: string, plays: number, max: number) => `
+    <div class="taste-bar-wrap">
+      <div class="taste-bar-label"><span>${escHtml(name)}</span><span>${plays.toLocaleString()}</span></div>
+      <div class="taste-bar-track"><div class="taste-bar-fill" style="width:${Math.round((plays/max)*100)}%"></div></div>
+    </div>`;
+
+  const scoreColor =
+    drift.consistency_score > 70 ? "#4ade80" :
+    drift.consistency_score > 40 ? "#f8c97c" : "#f87c7c";
+
+  const newChips   = drift.new_artists.slice(0, 8).map(a => `<span class="drift-chip drift-new">+ ${escHtml(a)}</span>`).join("");
+  const awayChips  = drift.drifted_away.slice(0, 8).map(a => `<span class="drift-chip drift-away">− ${escHtml(a)}</span>`).join("");
+
+  const noDataMsg = `<div class="empty" style="padding:2rem"><div class="icon">🎵</div><p>Not enough data yet — import more scrobbles to see your taste evolution.</p></div>`;
+  const hasData   = drift.current_top.length > 0;
+
+  const body = `
+    <h1 class="page-title"><span class="icon">🧬</span> Taste DNA</h1>
+
+    ${!hasData ? noDataMsg : `
+    <div class="era-card">
+      <div style="font-size:.75rem;color:#94a3b8;text-transform:uppercase;letter-spacing:.06em;margin-bottom:.3rem">You are currently in your…</div>
+      <div class="era-label">${escHtml(drift.era_label)}</div>
+      <div style="margin-top:.75rem;display:flex;align-items:center;gap:1rem;flex-wrap:wrap">
+        <div class="consistency-ring">
+          <div>
+            <div class="score" style="color:${scoreColor}">${drift.consistency_score}%</div>
+            <div style="font-size:.7rem">taste consistency</div>
+          </div>
+          <div style="font-size:.8rem;color:#64748b;max-width:160px">
+            ${drift.consistency_score > 70 ? "You've been loyal to your artists 💙" :
+              drift.consistency_score > 40 ? "A healthy mix of old faves & new sounds" :
+              "Your taste has shifted a lot this month 🔄"}
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="taste-compare">
+      <div>
+        <h3>This Month</h3>
+        ${drift.current_top.map(a => barRow(a.name, a.plays, maxCur)).join("") || "<p style='color:#475569;font-size:.85rem'>No plays this month.</p>"}
+      </div>
+      <div>
+        <h3>A Year Ago (same period)</h3>
+        ${drift.year_ago_top.map(a => barRow(a.name, a.plays, maxPast)).join("") || "<p style='color:#475569;font-size:.85rem'>No data for this period.</p>"}
+      </div>
+    </div>
+
+    ${newChips ? `
+    <div style="margin-bottom:1.25rem">
+      <p style="font-size:.8rem;color:#4ade80;text-transform:uppercase;letter-spacing:.05em;margin-bottom:.4rem">✨ New discoveries this month</p>
+      ${newChips}
+    </div>` : ""}
+
+    ${awayChips ? `
+    <div style="margin-bottom:1.25rem">
+      <p style="font-size:.8rem;color:#fb923c;text-transform:uppercase;letter-spacing:.05em;margin-bottom:.4rem">👋 Artists you've drifted from (vs. a year ago)</p>
+      ${awayChips}
+    </div>` : ""}
+
+    <div style="background:#1a1d27;border:1px solid #2a2d3e;border-radius:.5rem;padding:1rem;margin-top:.5rem">
+      <p style="font-size:.8rem;color:#64748b">
+        💡 <strong style="color:#94a3b8">How this works:</strong> Taste DNA compares your top 10 artists over the last 30 days vs. the same 30-day window one year ago.
+        Consistency score = overlap between the two lists.
+        <a href="/universe" style="color:#7c9ef8">Explore the Universe Map</a> to see how your artists cluster and connect.
+      </p>
+    </div>
+    `}
+  `;
+  return layout({ title: "Taste DNA", active: "/taste", body });
 }
