@@ -14,6 +14,16 @@
 import { NETWORK_API_URLS, type NetworkName } from "./config";
 import type { ArtistRow, AlbumRow, TrackRow, PlayRow } from "./db";
 
+// ─── Client identity ──────────────────────────────────────────────────────────
+
+/**
+ * Sent as the User-Agent on every request to Last.fm and Libre.fm.
+ * An identifiable User-Agent is required to avoid being mistaken for an
+ * automated scraper — Libre.fm explicitly blocks anything that looks like one.
+ * See: https://github.com/libre-fm/developer/wiki/Libre.fm-fundamentals#ai-policy
+ */
+const USER_AGENT = "scrobbledb/2.0 (https://github.com/shelbeely/ScrobbleVault)";
+
 // ─── Crypto (Bun-native) ──────────────────────────────────────────────────────
 
 /** MD5-hash a UTF-8 string and return the lowercase hex digest. */
@@ -55,7 +65,10 @@ export async function getSessionKey(
 
   const res = await fetch(NETWORK_API_URLS[network], {
     method:  "POST",
-    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    headers: {
+      "Content-Type": "application/x-www-form-urlencoded",
+      "User-Agent":   USER_AGENT,
+    },
     body:    new URLSearchParams(params).toString(),
   });
 
@@ -115,7 +128,9 @@ async function apiGet(
 
   for (let attempt = 1; attempt <= retries; attempt++) {
     try {
-      const res = await fetch(url.toString());
+      const res = await fetch(url.toString(), {
+        headers: { "User-Agent": USER_AGENT },
+      });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = (await res.json()) as { error?: number; message?: string };
       if (data.error) throw new Error(`${network} API error ${data.error}: ${data.message}`);

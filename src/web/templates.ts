@@ -722,13 +722,13 @@ export function renderSettings(
       </form>
       <script>
         function updateNetworkHelp() {
-          var net = document.getElementById('network-select').value;
+          const net = document.getElementById('network-select').value;
           document.getElementById('help-lastfm').style.display  = net === 'lastfm'  ? '' : 'none';
           document.getElementById('help-librefm').style.display = net === 'librefm' ? '' : 'none';
-          var keyInput = document.getElementById('api-key-input');
+          const keyInput = document.getElementById('api-key-input');
           if (net === 'librefm') {
-            keyInput.maxLength = 32;
-            keyInput.minLength = 32;
+            keyInput.setAttribute('maxlength', '32');
+            keyInput.setAttribute('minlength', '32');
             keyInput.placeholder = '32-character API key (you can make one up)';
           } else {
             keyInput.removeAttribute('maxlength');
