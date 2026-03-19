@@ -167,7 +167,7 @@ function navHtml(active: string): string {
     ["/settings", "Settings", "⚙️"],
   ];
   return `<nav>
-    <span class="brand">scrobble<span>db</span></span>
+    <span class="brand">ScrobbleVault</span>
     ${links.map(([href, label, icon]) => `<a href="${href}"${href === active ? ' class="active"' : ''}>${icon} ${label}</a>`).join("")}
   </nav>`;
 }

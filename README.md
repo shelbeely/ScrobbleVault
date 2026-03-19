@@ -223,6 +223,22 @@ The browser UI includes:
 
 ---
 
+## Screenshots
+
+| Dashboard | Wrapped |
+|---|---|
+| ![ScrobbleVault dashboard](docs/screenshots/dashboard.png) | ![ScrobbleVault wrapped view](docs/screenshots/wrapped.png) |
+
+| Universe | Timeline |
+|---|---|
+| ![ScrobbleVault universe map](docs/screenshots/universe.png) | ![ScrobbleVault timeline view](docs/screenshots/timeline.png) |
+
+| Settings | Login |
+|---|---|
+| ![ScrobbleVault settings](docs/screenshots/settings.png) | ![ScrobbleVault login screen](docs/screenshots/login.png) |
+
+---
+
 ## JSON API
 
 ### Auth
