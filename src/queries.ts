@@ -133,19 +133,36 @@ function timestampFilter(since?: Date | null, until?: Date | null): {
 
 // ─── Stats queries ────────────────────────────────────────────────────────────
 
-export function getOverviewStats(db: Database): OverviewStats {
+export function getOverviewStats(
+  db: Database,
+  opts: { since?: Date | null; until?: Date | null } = {},
+): OverviewStats {
+  const { clause, params } = timestampFilter(opts.since, opts.until);
   const row = db
     .query(
       `SELECT
-        (SELECT COUNT(*) FROM plays)   AS total_scrobbles,
-        (SELECT COUNT(*) FROM artists) AS unique_artists,
-        (SELECT COUNT(*) FROM albums)  AS unique_albums,
-        (SELECT COUNT(*) FROM tracks)  AS unique_tracks,
-        (SELECT MIN(timestamp) FROM plays) AS first_scrobble,
-        (SELECT MAX(timestamp) FROM plays) AS last_scrobble`,
+         COUNT(plays.timestamp)        AS total_scrobbles,
+         COUNT(DISTINCT artists.id)    AS unique_artists,
+         COUNT(DISTINCT albums.id)     AS unique_albums,
+         COUNT(DISTINCT tracks.id)     AS unique_tracks,
+         MIN(plays.timestamp)          AS first_scrobble,
+         MAX(plays.timestamp)          AS last_scrobble
+       FROM plays
+       JOIN tracks  ON plays.track_id  = tracks.id
+       JOIN albums  ON tracks.album_id = albums.id
+       JOIN artists ON albums.artist_id = artists.id
+       ${clause}`,
     )
-    .get() as OverviewStats;
-  return row;
+    .get(...params) as OverviewStats | null;
+
+  return row ?? {
+    total_scrobbles: 0,
+    unique_artists: 0,
+    unique_albums: 0,
+    unique_tracks: 0,
+    first_scrobble: null,
+    last_scrobble: null,
+  };
 }
 
 export function getMonthlyRollup(
@@ -343,7 +360,80 @@ export function getAlbums(
     .all(...whereParams) as AlbumRow[];
 }
 
+export function getTopAlbums(
+  db: Database,
+  opts: { limit?: number; since?: Date | null; until?: Date | null } = {},
+): (AlbumRow & { rank: number; percentage: number })[] {
+  const { limit = 20 } = opts;
+  const { clause, params } = timestampFilter(opts.since, opts.until);
+
+  const rows = db
+    .query(
+      `SELECT
+         albums.id      AS album_id,
+         albums.title   AS album_title,
+         artists.id     AS artist_id,
+         artists.name   AS artist_name,
+         COUNT(DISTINCT tracks.id) AS track_count,
+         COUNT(plays.timestamp)    AS play_count,
+         MAX(plays.timestamp)      AS last_played
+       FROM plays
+       JOIN tracks  ON plays.track_id  = tracks.id
+       JOIN albums  ON tracks.album_id = albums.id
+       JOIN artists ON albums.artist_id = artists.id
+       ${clause}
+       GROUP BY albums.id
+       ORDER BY play_count DESC
+       LIMIT ${limit}`,
+    )
+    .all(...params) as AlbumRow[];
+
+  const total = rows.reduce((sum, row) => sum + row.play_count, 0) || 1;
+  return rows.map((row, index) => ({
+    ...row,
+    rank: index + 1,
+    percentage: Math.round((row.play_count / total) * 1000) / 10,
+  }));
+}
+
 // ─── Tracks ───────────────────────────────────────────────────────────────────
+
+export function getTopTracks(
+  db: Database,
+  opts: { limit?: number; since?: Date | null; until?: Date | null } = {},
+): (TrackRow & { rank: number; percentage: number })[] {
+  const { limit = 20 } = opts;
+  const { clause, params } = timestampFilter(opts.since, opts.until);
+
+  const rows = db
+    .query(
+      `SELECT
+         tracks.id      AS track_id,
+         tracks.title   AS track_title,
+         albums.id      AS album_id,
+         albums.title   AS album_title,
+         artists.id     AS artist_id,
+         artists.name   AS artist_name,
+         COUNT(plays.timestamp) AS play_count,
+         MAX(plays.timestamp)   AS last_played
+       FROM plays
+       JOIN tracks  ON plays.track_id  = tracks.id
+       JOIN albums  ON tracks.album_id = albums.id
+       JOIN artists ON albums.artist_id = artists.id
+       ${clause}
+       GROUP BY tracks.id
+       ORDER BY play_count DESC
+       LIMIT ${limit}`,
+    )
+    .all(...params) as TrackRow[];
+
+  const total = rows.reduce((sum, row) => sum + row.play_count, 0) || 1;
+  return rows.map((row, index) => ({
+    ...row,
+    rank: index + 1,
+    percentage: Math.round((row.play_count / total) * 1000) / 10,
+  }));
+}
 
 export function getTracks(
   db: Database,
@@ -468,13 +558,14 @@ export function getPlays(
   db: Database,
   opts: {
     limit?: number;
+    offset?: number;
     since?: Date | null;
     until?: Date | null;
     artistId?: string;
     trackId?: string;
   } = {},
 ): PlayRow[] {
-  const { limit = 50, artistId, trackId } = opts;
+  const { limit = 50, offset = 0, artistId, trackId } = opts;
   const whereParts: string[] = [];
   const whereParams: (string | number)[] = [];
 
@@ -511,7 +602,8 @@ export function getPlays(
       JOIN artists ON albums.artist_id = artists.id
       ${whereClause}
       ORDER BY plays.timestamp DESC
-      LIMIT ${limit}`,
+      LIMIT ${limit}
+      OFFSET ${offset}`,
     )
     .all(...whereParams) as PlayRow[];
 }

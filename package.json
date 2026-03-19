@@ -1,15 +1,17 @@
 {
   "name": "scrobble-vault",
-  "version": "2.0.0",
-  "description": "Save your listening history from Last.fm or Libre.fm — Bun.js web app",
+  "version": "2.1.0",
+  "description": "Save your listening history from Last.fm, Libre.fm, or a self-hosted ScrobbleVault instance — Bun.js web app",
   "module": "src/index.ts",
   "type": "module",
   "private": true,
   "scripts": {
-    "start":     "bun run src/index.ts",
-    "dev":       "bun --hot run src/index.ts",
+    "start": "bun run src/index.ts",
+    "dev": "bun --hot run src/index.ts",
     "typecheck": "tsc --noEmit",
-    "cli":       "bun run src/cli/index.tsx"
+    "cli": "bun run src/cli/index.tsx",
+    "seed": "bun run src/seed.ts",
+    "migrate": "bun run src/migrate.ts"
   },
   "dependencies": {
     "ink": "^6.8.0",

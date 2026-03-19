@@ -9,13 +9,15 @@
  */
 
 const APP_NAME = "dev.pirateninja.scrobbledb";
+export const SCROBBLEVAULT_COMPAT_PATH = "/2.0/";
 
 export interface AuthData {
-  lastfm_network: "lastfm" | "librefm";
+  lastfm_network: "lastfm" | "librefm" | "scrobblevault";
   lastfm_username: string;
   lastfm_api_key: string;
   lastfm_shared_secret: string;
   lastfm_session_key: string;
+  lastfm_custom_api_url?: string;
 }
 
 // ─── Path helpers (no "path" module) ─────────────────────────────────────────
@@ -50,9 +52,7 @@ export async function getDataDir(): Promise<string> {
     base = Bun.env.XDG_DATA_HOME ?? joinPath(homeDir(), ".local", "share");
   }
   const dir = joinPath(base, APP_NAME);
-  // Bun exposes mkdir via its Node-compat layer; call via import to keep the
-  // rest of this module free of Node imports.
-  await Bun.write(joinPath(dir, ".keep"), "");  // creates parent dirs via Bun
+  await Bun.write(joinPath(dir, ".keep"), "");
   return dir;
 }
 
@@ -94,8 +94,6 @@ export async function loadAuthAsync(authPath?: string): Promise<AuthData | null>
 
 /** Read a file synchronously using Bun's native approach. */
 function readFileSync(path: string): Uint8Array {
-  // Bun.spawnSync cat is the Bun-native way to read synchronously without
-  // importing node:fs.
   const proc = Bun.spawnSync(["cat", path]);
   return proc.stdout;
 }
@@ -103,7 +101,6 @@ function readFileSync(path: string): Uint8Array {
 /** Synchronous auth load used at startup (reads file via Bun's readFileSync shim). */
 export function loadAuth(authPath?: string): AuthData | null {
   const path = authPath ?? getDefaultAuthPath();
-  // Bun.file().exists() is async; use a sync existence check via spawnSync
   const result = Bun.spawnSync(["test", "-f", path]);
   if (result.exitCode !== 0) return null;
   try {
@@ -117,7 +114,6 @@ export function loadAuth(authPath?: string): AuthData | null {
 /** Save auth data to JSON file using Bun.write (async, awaited by callers). */
 export async function saveAuth(data: AuthData, authPath?: string): Promise<void> {
   const path = authPath ?? getDefaultAuthPath();
-  // Ensure parent directory exists
   await getDataDir();
   await Bun.write(path, JSON.stringify(data, null, 2));
 }
@@ -125,13 +121,56 @@ export async function saveAuth(data: AuthData, authPath?: string): Promise<void>
 // ─── Network config ───────────────────────────────────────────────────────────
 
 export const NETWORK_API_URLS = {
-  lastfm:  "https://ws.audioscrobbler.com/2.0/",
+  lastfm: "https://ws.audioscrobbler.com/2.0/",
   librefm: "https://libre.fm/2.0/",
+  scrobblevault: `http://localhost:3000${SCROBBLEVAULT_COMPAT_PATH}`,
 } as const;
 
 export type NetworkName = keyof typeof NETWORK_API_URLS;
 
 export const NETWORK_INFO = {
-  lastfm:  { name: "Last.fm",  signupUrl: "https://www.last.fm/api/account/create" },
-  librefm: { name: "Libre.fm", signupUrl: "https://libre.fm/api/account/create" },
+  lastfm: {
+    name: "Last.fm",
+    signupUrl: "https://www.last.fm/api/account/create",
+    description: "Use your Last.fm API credentials and password.",
+  },
+  librefm: {
+    name: "Libre.fm",
+    signupUrl: "https://libre.fm/api/account/create",
+    description: "Libre.fm accepts any 32-character API key and shared secret.",
+  },
+  scrobblevault: {
+    name: "ScrobbleVault",
+    signupUrl: "",
+    description: "Use the compatibility endpoint from a self-hosted ScrobbleVault instance.",
+  },
 } as const;
+
+export const SCROBBLEVAULT_COMPAT_APP_KEY = "ScrobbleVaultCompat";
+export const SCROBBLEVAULT_COMPAT_SHARED_SECRET = "ScrobbleVaultCompatSecret";
+
+export function normalizeCompatApiUrl(input: string): string {
+  const raw = input.trim();
+  if (!raw) return NETWORK_API_URLS.scrobblevault;
+
+  let urlText = raw;
+  if (!/^https?:\/\//i.test(urlText)) urlText = `http://${urlText}`;
+  urlText = urlText.replace(/\/+$/, "");
+
+  if (!urlText.endsWith("/2.0")) {
+    urlText += SCROBBLEVAULT_COMPAT_PATH.slice(0, -1);
+  }
+
+  return `${urlText}/`;
+}
+
+export function resolveNetworkApiUrl(network: NetworkName, customApiUrl?: string): string {
+  if (network === "scrobblevault") {
+    return normalizeCompatApiUrl(customApiUrl ?? NETWORK_API_URLS.scrobblevault);
+  }
+  return NETWORK_API_URLS[network];
+}
+
+export function getNetworkDisplayName(network: NetworkName): string {
+  return NETWORK_INFO[network].name;
+}

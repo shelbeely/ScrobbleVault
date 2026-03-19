@@ -1,0 +1,16 @@
+services:
+  - type: web
+    name: scrobblevault
+    runtime: bun
+    plan: free
+    buildCommand: bun install
+    startCommand: bun run start
+    envVars:
+      - key: HOST
+        value: 0.0.0.0
+      - key: SCROBBLEDB_PATH
+        value: /var/data/scrobbledb.db
+    disk:
+      name: scrobblevault-data
+      mountPath: /var/data
+      sizeGB: 1

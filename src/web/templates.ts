@@ -163,6 +163,7 @@ function navHtml(active: string): string {
     ["/tracks", "Tracks", "🎼"],
     ["/stats", "Stats", "📊"],
     ["/search", "Search", "🔍"],
+    ["/now-playing", "Now Playing", "📻"],
     ["/settings", "Settings", "⚙️"],
   ];
   return `<nav>
@@ -248,8 +249,20 @@ export function renderDashboard(
   thisYear?: number,
   thisMonth?: number,
   genreClusters?: { id: number; topArtist: string; artists: string[]; plays: number }[],
+  nowPlaying?: { artist_name: string; album_title: string | null; track_title: string; updated_at: string } | null,
 ): string {
   const streakData = streak ?? { current_streak: 0, longest_streak: 0, total_days_listened: 0, total_active_weeks: 0 };
+  const nowPlayingCard = nowPlaying
+    ? `<div class="form-card" style="max-width:none;margin-bottom:1rem">
+         <p style="font-size:.75rem;color:#64748b;text-transform:uppercase;letter-spacing:.05em;margin-bottom:.35rem">Now Playing Cache</p>
+         <div style="font-size:1.05rem;font-weight:600;color:#e2e8f0">${escHtml(nowPlaying.track_title)}</div>
+         <div style="color:#94a3b8;margin-top:.2rem">${escHtml(nowPlaying.artist_name)}${nowPlaying.album_title ? ` · ${escHtml(nowPlaying.album_title)}` : ""}</div>
+         <div style="font-size:.8rem;color:#64748b;margin-top:.45rem">Updated ${fmtDate(nowPlaying.updated_at)}</div>
+       </div>`
+    : `<div class="form-card" style="max-width:none;margin-bottom:1rem">
+         <p style="font-size:.75rem;color:#64748b;text-transform:uppercase;letter-spacing:.05em;margin-bottom:.35rem">Now Playing Cache</p>
+         <p style="color:#94a3b8">No active now-playing track has been submitted yet. Point Panoscrobbler at your ScrobbleVault compatibility endpoint to populate this.</p>
+       </div>`;
 
   // Genre cluster chips — dynamic groups derived from co-listening patterns
   const clusterSection = genreClusters && genreClusters.length > 0 ? (() => {
@@ -295,6 +308,7 @@ export function renderDashboard(
         <div class="stat-card"><div class="value">${fmtNum(streakData.total_days_listened)}</div><div class="label">Days Active</div></div>
         <div class="stat-card"><div class="value">${fmtNum(streakData.total_active_weeks)}</div><div class="label">Weeks Active</div></div>
       </div>
+      ${nowPlayingCard}
       ${clusterSection}
     </div>
 
@@ -682,33 +696,87 @@ export function renderSearch(
   return layout({ title: "Search", active: "/search", body });
 }
 
+export function renderLogin(
+  flash?: { type: "success" | "error" | "info"; message: string },
+): string {
+  const body = `
+    <h1 class="page-title"><span class="icon">🔐</span> Local Login</h1>
+    <div class="form-card">
+      <p style="color:#94a3b8;margin-bottom:1rem">Use your local ScrobbleVault username and password to create an authenticated session for the JSON API.</p>
+      <form method="post" action="/login">
+        <label>Username</label>
+        <input name="username" placeholder="admin" required>
+        <label>Password</label>
+        <input type="password" name="password" placeholder="your password" required>
+        <button type="submit" class="btn">Log in</button>
+      </form>
+    </div>
+  `;
+  return layout({ title: "Login", active: "/login", body, flash });
+}
+
+export function renderNowPlaying(
+  nowPlaying: { artist_name: string; album_title: string | null; track_title: string; started_at: string; updated_at: string; source: string | null; client: string | null } | null,
+): string {
+  const body = nowPlaying
+    ? `
+      <h1 class="page-title"><span class="icon">📻</span> Now Playing</h1>
+      <div class="form-card" style="max-width:720px">
+        <div style="font-size:1.35rem;font-weight:700;margin-bottom:.25rem">${escHtml(nowPlaying.track_title)}</div>
+        <div style="color:#94a3b8;font-size:1rem">${escHtml(nowPlaying.artist_name)}${nowPlaying.album_title ? ` · ${escHtml(nowPlaying.album_title)}` : ""}</div>
+        <div style="margin-top:1rem;color:#64748b;font-size:.85rem;line-height:1.7">
+          <div><strong style="color:#94a3b8">Started:</strong> ${fmtDate(nowPlaying.started_at)}</div>
+          <div><strong style="color:#94a3b8">Updated:</strong> ${fmtDate(nowPlaying.updated_at)}</div>
+          <div><strong style="color:#94a3b8">Source:</strong> ${escHtml(nowPlaying.source ?? "—")}</div>
+          <div><strong style="color:#94a3b8">Client:</strong> ${escHtml(nowPlaying.client ?? "—")}</div>
+        </div>
+      </div>`
+    : `
+      <h1 class="page-title"><span class="icon">📻</span> Now Playing</h1>
+      <div class="empty"><div class="icon">🎵</div><p>No now-playing state is cached yet. Submit <code>track.updateNowPlaying</code> to <code>/2.0/</code> from Panoscrobbler or the JSON API.</p></div>`;
+  return layout({ title: "Now Playing", active: "/now-playing", body });
+}
+
 // ─── Settings ─────────────────────────────────────────────────────────────────
 
 export function renderSettings(
   current: {
     network: string;
     username: string;
+    customApiUrl: string;
     hasCredentials: boolean;
   },
   flash?: { type: "success" | "error" | "info"; message: string },
 ): string {
+  const networkName = current.network === "librefm"
+    ? "Libre.fm"
+    : current.network === "scrobblevault"
+      ? "ScrobbleVault"
+      : "Last.fm";
   const body = `
     <h1 class="page-title"><span class="icon">⚙️</span> Settings</h1>
-    <div class="form-card" style="margin-bottom:1.5rem">
+    <div class="form-card" style="margin-bottom:1.5rem;max-width:720px">
       <h2 style="font-size:1rem;margin-bottom:1rem;color:#94a3b8">API Credentials</h2>
-      ${current.hasCredentials ? `<div class="flash flash-success" style="margin-bottom:1rem">✓ Credentials configured for <strong>${escHtml(current.username)}</strong> on <strong>${escHtml(current.network === "librefm" ? "Libre.fm" : "Last.fm")}</strong></div>` : `<div class="flash flash-info" style="margin-bottom:1rem">No credentials configured yet.</div>`}
+      ${current.hasCredentials ? `<div class="flash flash-success" style="margin-bottom:1rem">✓ Credentials configured for <strong>${escHtml(current.username)}</strong> on <strong>${escHtml(networkName)}</strong></div>` : `<div class="flash flash-info" style="margin-bottom:1rem">No credentials configured yet.</div>`}
       <form method="post" action="/settings/auth" id="settings-form">
         <label>Network</label>
         <select name="network" id="network-select" onchange="updateNetworkHelp()">
-          <option value="lastfm"${current.network !== "librefm" ? " selected" : ""}>Last.fm</option>
+          <option value="lastfm"${current.network === "lastfm" ? " selected" : ""}>Last.fm</option>
           <option value="librefm"${current.network === "librefm" ? " selected" : ""}>Libre.fm</option>
+          <option value="scrobblevault"${current.network === "scrobblevault" ? " selected" : ""}>ScrobbleVault</option>
         </select>
+        <div id="custom-url-wrap" style="display:none">
+          <label>Compatibility API URL</label>
+          <input name="custom_api_url" value="${escHtml(current.customApiUrl)}" placeholder="https://your-app.onrender.com/2.0/">
+        </div>
         <label>Username</label>
         <input name="username" value="${escHtml(current.username)}" placeholder="your username" required>
-        <label>API Key</label>
-        <input name="api_key" id="api-key-input" placeholder="API key" required>
-        <label>Shared Secret</label>
-        <input name="shared_secret" placeholder="shared secret" required>
+        <div id="api-credential-wrap">
+          <label>API Key</label>
+          <input name="api_key" id="api-key-input" placeholder="API key">
+          <label>Shared Secret</label>
+          <input name="shared_secret" id="shared-secret-input" placeholder="shared secret">
+        </div>
         <label>Password</label>
         <input type="password" name="password" placeholder="your password" required>
         <div id="help-lastfm" style="font-size:.8rem;color:#475569;margin-bottom:1rem">
@@ -718,22 +786,47 @@ export function renderSettings(
           Libre.fm does not require API key registration. You may <strong style="color:#94a3b8">invent any 32-character string</strong> as your API key and shared secret — they are not validated beyond length.
           See the <a href="https://github.com/libre-fm/developer/wiki/Libre.fm-fundamentals" target="_blank" rel="noopener">Libre.fm developer docs</a> for details.
         </div>
+        <div id="help-scrobblevault" style="font-size:.8rem;color:#475569;margin-bottom:1rem;display:none">
+          Use the compatibility endpoint from another ScrobbleVault instance, for example <code>https://your-app.onrender.com/2.0/</code>.
+          This is the same URL Panoscrobbler should use for its “Last.fm-like instance” setting.
+        </div>
         <button type="submit" class="btn">Save &amp; Authenticate</button>
       </form>
+      <div class="form-card" style="max-width:none;margin-top:1rem;background:#0f1117">
+        <h3 style="font-size:.9rem;color:#e2e8f0;margin-bottom:.4rem">Self-hosted backend protocol model</h3>
+        <p style="color:#94a3b8;font-size:.88rem;line-height:1.6;margin-bottom:.75rem">ScrobbleVault now exposes both a Last.fm-compatible endpoint at <code>/2.0/</code> and a ListenBrainz-compatible endpoint at <code>/1/</code>.</p>
+        <ul style="color:#94a3b8;font-size:.88rem;line-height:1.8;padding-left:1rem">
+          <li><strong style="color:#e2e8f0">Libre.fm</strong> → retro compatibility layer via the shared <code>/2.0/</code> protocol family</li>
+          <li><strong style="color:#e2e8f0">Last.fm</strong> → dominant but closed ecosystem, also represented by <code>/2.0/</code></li>
+          <li><strong style="color:#e2e8f0">ListenBrainz</strong> → future-proof open system via token-based <code>/1/</code> endpoints</li>
+        </ul>
+      </div>
       <script>
         function updateNetworkHelp() {
           const net = document.getElementById('network-select').value;
-          document.getElementById('help-lastfm').style.display  = net === 'lastfm'  ? '' : 'none';
-          document.getElementById('help-librefm').style.display = net === 'librefm' ? '' : 'none';
           const keyInput = document.getElementById('api-key-input');
+          const secretInput = document.getElementById('shared-secret-input');
+          const apiWrap = document.getElementById('api-credential-wrap');
+          const customWrap = document.getElementById('custom-url-wrap');
+          document.getElementById('help-lastfm').style.display = net === 'lastfm' ? '' : 'none';
+          document.getElementById('help-librefm').style.display = net === 'librefm' ? '' : 'none';
+          document.getElementById('help-scrobblevault').style.display = net === 'scrobblevault' ? '' : 'none';
+          customWrap.style.display = net === 'scrobblevault' ? '' : 'none';
+          apiWrap.style.display = net === 'scrobblevault' ? 'none' : '';
           if (net === 'librefm') {
             keyInput.setAttribute('maxlength', '32');
             keyInput.setAttribute('minlength', '32');
+            secretInput.setAttribute('maxlength', '32');
+            secretInput.setAttribute('minlength', '32');
             keyInput.placeholder = '32-character API key (you can make one up)';
+            secretInput.placeholder = '32-character shared secret (you can make one up)';
           } else {
             keyInput.removeAttribute('maxlength');
             keyInput.removeAttribute('minlength');
+            secretInput.removeAttribute('maxlength');
+            secretInput.removeAttribute('minlength');
             keyInput.placeholder = 'API key';
+            secretInput.placeholder = 'shared secret';
           }
         }
         updateNetworkHelp();
