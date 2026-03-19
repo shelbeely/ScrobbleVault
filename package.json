@@ -1,5 +1,5 @@
 {
-  "name": "scrobblevault",
+  "name": "scrobble-vault",
   "version": "2.0.0",
   "description": "Save your listening history from Last.fm or Libre.fm — Bun.js web app",
   "module": "src/index.ts",

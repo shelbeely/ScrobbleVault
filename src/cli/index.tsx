@@ -148,34 +148,34 @@ function OptionRow({ flag, desc }: { flag: string; desc: string }): React.ReactE
 // ─── Column definitions ───────────────────────────────────────────────────────
 
 const ARTIST_COLS: ColDef[] = [
-  { header: "Artist", width: 30 },
-  { header: "Albums", width: 6, align: "right" },
-  { header: "Tracks", width: 6, align: "right" },
-  { header: "Plays", width: 7, align: "right" },
+  { header: "Artist",      width: 30 },
+  { header: "Albums",      width: 6,  align: "right" },
+  { header: "Tracks",      width: 6,  align: "right" },
+  { header: "Plays",       width: 22, align: "right" }, // extra width for bar
   { header: "Last Played", width: 20 },
 ];
 
 const ALBUM_COLS: ColDef[] = [
-  { header: "Album", width: 30 },
-  { header: "Artist", width: 24 },
-  { header: "Tracks", width: 6, align: "right" },
-  { header: "Plays", width: 7, align: "right" },
+  { header: "Album",       width: 30 },
+  { header: "Artist",      width: 24 },
+  { header: "Tracks",      width: 6,  align: "right" },
+  { header: "Plays",       width: 22, align: "right" },
   { header: "Last Played", width: 20 },
 ];
 
 const TRACK_COLS: ColDef[] = [
-  { header: "Track", width: 28 },
-  { header: "Artist", width: 22 },
-  { header: "Album", width: 22 },
-  { header: "Plays", width: 7, align: "right" },
+  { header: "Track",       width: 28 },
+  { header: "Artist",      width: 22 },
+  { header: "Album",       width: 22 },
+  { header: "Plays",       width: 22, align: "right" },
   { header: "Last Played", width: 20 },
 ];
 
 const PLAY_COLS: ColDef[] = [
   { header: "Timestamp", width: 22 },
-  { header: "Artist", width: 22 },
-  { header: "Album", width: 22 },
-  { header: "Track", width: 26 },
+  { header: "Artist",    width: 22 },
+  { header: "Album",     width: 22 },
+  { header: "Track",     width: 26 },
 ];
 
 // ─── Main ─────────────────────────────────────────────────────────────────────
@@ -246,9 +246,11 @@ switch (command) {
       ? sortFlag
       : "plays") as "plays" | "name" | "recent";
     const rows: ArtistRow[] = getArtists(db, { limit, sortBy, order: orderFlag });
+    const maxPlays = rows[0]?.play_count ?? 1;
+    const cols = ARTIST_COLS.map((c, i) => i === 3 ? { ...c, barMax: maxPlays } : c);
     await renderAndExit(
       <Table<ArtistRow>
-        columns={ARTIST_COLS}
+        columns={cols}
         rows={rows}
         keys={["artist_name", "album_count", "track_count", "play_count", "last_played"]}
         emptyMessage="No artists found."
@@ -262,9 +264,11 @@ switch (command) {
       ? sortFlag
       : "plays") as "plays" | "title" | "recent";
     const rows: AlbumRow[] = getAlbums(db, { limit, sortBy, order: orderFlag });
+    const maxPlays = rows[0]?.play_count ?? 1;
+    const cols = ALBUM_COLS.map((c, i) => i === 3 ? { ...c, barMax: maxPlays } : c);
     await renderAndExit(
       <Table<AlbumRow>
-        columns={ALBUM_COLS}
+        columns={cols}
         rows={rows}
         keys={["album_title", "artist_name", "track_count", "play_count", "last_played"]}
         emptyMessage="No albums found."
@@ -278,9 +282,11 @@ switch (command) {
       ? sortFlag
       : "plays") as "plays" | "title" | "recent";
     const rows: TrackRow[] = getTracks(db, { limit, sortBy, order: orderFlag });
+    const maxPlays = rows[0]?.play_count ?? 1;
+    const cols = TRACK_COLS.map((c, i) => i === 3 ? { ...c, barMax: maxPlays } : c);
     await renderAndExit(
       <Table<TrackRow>
-        columns={TRACK_COLS}
+        columns={cols}
         rows={rows}
         keys={["track_title", "artist_name", "album_title", "play_count", "last_played"]}
         emptyMessage="No tracks found."

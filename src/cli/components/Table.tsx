@@ -3,15 +3,26 @@
  *
  * Renders a fixed-width table with bold-cyan headers, a dim separator,
  * and coloured rows (yellow for numbers, white for strings).
+ *
+ * Numeric columns may optionally display an inline progress bar by setting
+ * `barMax` on the ColDef to the maximum value across all rows.
  */
 
 import React from "react";
 import { Box, Text } from "ink";
+import { ProgressBar } from "./ProgressBar";
 
 export interface ColDef {
   header: string;
   width: number;
   align?: "left" | "right";
+  /**
+   * When set, numeric cells in this column render a mini progress bar
+   * proportional to value/barMax immediately after the number.
+   * The bar is 12 chars wide and does not consume extra column space —
+   * size the column width to accommodate both number and bar.
+   */
+  barMax?: number;
 }
 
 interface TableProps<T extends object> {
@@ -22,6 +33,8 @@ interface TableProps<T extends object> {
   formatters?: Partial<Record<keyof T, (v: unknown) => string>>;
   emptyMessage?: string;
 }
+
+const BAR_WIDTH = 12;
 
 function padCell(str: string, width: number, align: "left" | "right"): string {
   const truncated = str.length > width ? str.slice(0, width - 3) + "..." : str;
@@ -78,10 +91,26 @@ export function Table<T extends object>(
             const str = formatter ? formatter(raw) : raw == null ? "" : String(raw);
             const isNum = typeof raw === "number";
             const align = col.align ?? (isNum ? "right" : "left");
-            const padded = padCell(str, col.width, align);
+            const showBar = isNum && col.barMax !== undefined && col.barMax > 0;
+
+            // When a bar is shown the number occupies the left portion of the
+            // cell and the bar fills the right BAR_WIDTH chars.
+            const numWidth = showBar ? col.width - BAR_WIDTH - 1 : col.width;
+            const padded = padCell(str, numWidth, align);
+
             return (
               <Box key={ci} marginRight={1}>
                 <Text color={isNum ? "yellow" : "white"}>{padded}</Text>
+                {showBar && typeof raw === "number" && (
+                  <>
+                    <Text> </Text>
+                    <ProgressBar
+                      value={raw / col.barMax!}
+                      width={BAR_WIDTH}
+                      color="cyan"
+                    />
+                  </>
+                )}
               </Box>
             );
           })}
