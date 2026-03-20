@@ -73,6 +73,12 @@ export interface PlayRow {
   track_id: string;
 }
 
+type SortOrder = "asc" | "desc";
+
+const ARTIST_SORT_FIELDS = ["plays", "name", "recent"] as const;
+const ALBUM_SORT_FIELDS = ["plays", "title", "recent"] as const;
+const TRACK_SORT_FIELDS = ["plays", "title", "recent"] as const;
+
 // ─── Date helpers ─────────────────────────────────────────────────────────────
 
 /**
@@ -106,6 +112,27 @@ export function parseRelativeDate(input: string): Date | null {
   }
 
   return null;
+}
+
+function normalizePositiveInteger(value: number, fallback: number): number {
+  return Number.isInteger(value) && value > 0 ? value : fallback;
+}
+
+function normalizeNonNegativeInteger(value: number, fallback: number): number {
+  return Number.isInteger(value) && value >= 0 ? value : fallback;
+}
+
+function normalizeOrder(value: string): SortOrder {
+  return value === "asc" ? "asc" : "desc";
+}
+
+function normalizeChoice<T extends string>(
+  value: string,
+  allowed: readonly T[],
+  fallback: T,
+): T {
+  const candidate = value as T;
+  return allowed.includes(candidate) ? candidate : fallback;
 }
 
 /** Build a WHERE clause fragment for timestamp filtering. */
@@ -231,6 +258,10 @@ export function getArtists(
   } = {},
 ): ArtistRow[] {
   const { limit = 20, sortBy = "plays", order = "desc", minPlays = 0, search } = opts;
+  const normalizedLimit = normalizePositiveInteger(limit, 20);
+  const normalizedSortBy = normalizeChoice(sortBy, ARTIST_SORT_FIELDS, "plays");
+  const normalizedOrder = normalizeOrder(order);
+  const normalizedMinPlays = normalizeNonNegativeInteger(minPlays, 0);
 
   const searchJoin = search
     ? `JOIN tracks_fts ON tracks_fts.artist_id = artists.id AND tracks_fts MATCH ?`
@@ -238,13 +269,13 @@ export function getArtists(
   const searchParam = search ? [search + "*"] : [];
 
   const orderExpr =
-    sortBy === "name"
-      ? `artists.name ${order.toUpperCase()}`
-      : sortBy === "recent"
-        ? `last_played ${order.toUpperCase()} NULLS LAST`
-        : `play_count ${order.toUpperCase()}`;
+    normalizedSortBy === "name"
+      ? `artists.name ${normalizedOrder.toUpperCase()}`
+      : normalizedSortBy === "recent"
+        ? `last_played ${normalizedOrder.toUpperCase()} NULLS LAST`
+        : `play_count ${normalizedOrder.toUpperCase()}`;
 
-  const havingClause = minPlays > 0 ? `HAVING play_count >= ${minPlays}` : "";
+  const havingClause = normalizedMinPlays > 0 ? `HAVING play_count >= ${normalizedMinPlays}` : "";
 
   return db
     .query(
@@ -259,12 +290,12 @@ export function getArtists(
       ${searchJoin}
       LEFT JOIN albums ON albums.artist_id = artists.id
       LEFT JOIN tracks ON tracks.album_id  = albums.id
-      LEFT JOIN plays  ON plays.track_id   = tracks.id
-      GROUP BY artists.id
-      ${havingClause}
-      ORDER BY ${orderExpr}
-      LIMIT ${limit}`,
-    )
+       LEFT JOIN plays  ON plays.track_id   = tracks.id
+       GROUP BY artists.id
+       ${havingClause}
+       ORDER BY ${orderExpr}
+       LIMIT ${normalizedLimit}`,
+     )
     .all(...searchParam) as ArtistRow[];
 }
 
@@ -273,6 +304,7 @@ export function getTopArtists(
   opts: { limit?: number; since?: Date | null; until?: Date | null } = {},
 ): (ArtistRow & { rank: number; percentage: number })[] {
   const { limit = 20 } = opts;
+  const normalizedLimit = normalizePositiveInteger(limit, 20);
   const { clause, params } = timestampFilter(opts.since, opts.until);
 
   const rows = db
@@ -287,12 +319,12 @@ export function getTopArtists(
       FROM plays
       JOIN tracks  ON plays.track_id  = tracks.id
       JOIN albums  ON tracks.album_id = albums.id
-      JOIN artists ON albums.artist_id = artists.id
-      ${clause}
-      GROUP BY artists.id
-      ORDER BY play_count DESC
-      LIMIT ${limit}`,
-    )
+       JOIN artists ON albums.artist_id = artists.id
+       ${clause}
+       GROUP BY artists.id
+       ORDER BY play_count DESC
+       LIMIT ${normalizedLimit}`,
+     )
     .all(...params) as ArtistRow[];
 
   const total = rows.reduce((s, r) => s + r.play_count, 0) || 1;
@@ -316,6 +348,9 @@ export function getAlbums(
   } = {},
 ): AlbumRow[] {
   const { limit = 20, sortBy = "plays", order = "desc", artistId, search } = opts;
+  const normalizedLimit = normalizePositiveInteger(limit, 20);
+  const normalizedSortBy = normalizeChoice(sortBy, ALBUM_SORT_FIELDS, "plays");
+  const normalizedOrder = normalizeOrder(order);
 
   const whereParts: string[] = [];
   const whereParams: (string | number)[] = [];
@@ -332,11 +367,11 @@ export function getAlbums(
   const whereClause = whereParts.length ? "WHERE " + whereParts.join(" AND ") : "";
 
   const orderExpr =
-    sortBy === "title"
-      ? `albums.title ${order.toUpperCase()}`
-      : sortBy === "recent"
-        ? `last_played ${order.toUpperCase()} NULLS LAST`
-        : `play_count ${order.toUpperCase()}`;
+    normalizedSortBy === "title"
+      ? `albums.title ${normalizedOrder.toUpperCase()}`
+      : normalizedSortBy === "recent"
+        ? `last_played ${normalizedOrder.toUpperCase()} NULLS LAST`
+        : `play_count ${normalizedOrder.toUpperCase()}`;
 
   return db
     .query(
@@ -351,12 +386,12 @@ export function getAlbums(
       FROM albums
       JOIN artists ON albums.artist_id = artists.id
       LEFT JOIN tracks ON tracks.album_id = albums.id
-      LEFT JOIN plays  ON plays.track_id  = tracks.id
-      ${whereClause}
-      GROUP BY albums.id
-      ORDER BY ${orderExpr}
-      LIMIT ${limit}`,
-    )
+       LEFT JOIN plays  ON plays.track_id  = tracks.id
+       ${whereClause}
+       GROUP BY albums.id
+       ORDER BY ${orderExpr}
+       LIMIT ${normalizedLimit}`,
+     )
     .all(...whereParams) as AlbumRow[];
 }
 
@@ -365,6 +400,7 @@ export function getTopAlbums(
   opts: { limit?: number; since?: Date | null; until?: Date | null } = {},
 ): (AlbumRow & { rank: number; percentage: number })[] {
   const { limit = 20 } = opts;
+  const normalizedLimit = normalizePositiveInteger(limit, 20);
   const { clause, params } = timestampFilter(opts.since, opts.until);
 
   const rows = db
@@ -380,12 +416,12 @@ export function getTopAlbums(
        FROM plays
        JOIN tracks  ON plays.track_id  = tracks.id
        JOIN albums  ON tracks.album_id = albums.id
-       JOIN artists ON albums.artist_id = artists.id
-       ${clause}
-       GROUP BY albums.id
-       ORDER BY play_count DESC
-       LIMIT ${limit}`,
-    )
+        JOIN artists ON albums.artist_id = artists.id
+        ${clause}
+        GROUP BY albums.id
+        ORDER BY play_count DESC
+       LIMIT ${normalizedLimit}`,
+     )
     .all(...params) as AlbumRow[];
 
   const total = rows.reduce((sum, row) => sum + row.play_count, 0) || 1;
@@ -403,6 +439,7 @@ export function getTopTracks(
   opts: { limit?: number; since?: Date | null; until?: Date | null } = {},
 ): (TrackRow & { rank: number; percentage: number })[] {
   const { limit = 20 } = opts;
+  const normalizedLimit = normalizePositiveInteger(limit, 20);
   const { clause, params } = timestampFilter(opts.since, opts.until);
 
   const rows = db
@@ -419,12 +456,12 @@ export function getTopTracks(
        FROM plays
        JOIN tracks  ON plays.track_id  = tracks.id
        JOIN albums  ON tracks.album_id = albums.id
-       JOIN artists ON albums.artist_id = artists.id
-       ${clause}
-       GROUP BY tracks.id
-       ORDER BY play_count DESC
-       LIMIT ${limit}`,
-    )
+        JOIN artists ON albums.artist_id = artists.id
+        ${clause}
+        GROUP BY tracks.id
+        ORDER BY play_count DESC
+       LIMIT ${normalizedLimit}`,
+     )
     .all(...params) as TrackRow[];
 
   const total = rows.reduce((sum, row) => sum + row.play_count, 0) || 1;
@@ -447,6 +484,9 @@ export function getTracks(
   } = {},
 ): TrackRow[] {
   const { limit = 20, sortBy = "plays", order = "desc", artistId, albumId, search } = opts;
+  const normalizedLimit = normalizePositiveInteger(limit, 20);
+  const normalizedSortBy = normalizeChoice(sortBy, TRACK_SORT_FIELDS, "plays");
+  const normalizedOrder = normalizeOrder(order);
 
   const whereParts: string[] = [];
   const whereParams: (string | number)[] = [];
@@ -467,11 +507,11 @@ export function getTracks(
   const whereClause = whereParts.length ? "WHERE " + whereParts.join(" AND ") : "";
 
   const orderExpr =
-    sortBy === "title"
-      ? `tracks.title ${order.toUpperCase()}`
-      : sortBy === "recent"
-        ? `last_played ${order.toUpperCase()} NULLS LAST`
-        : `play_count ${order.toUpperCase()}`;
+    normalizedSortBy === "title"
+      ? `tracks.title ${normalizedOrder.toUpperCase()}`
+      : normalizedSortBy === "recent"
+        ? `last_played ${normalizedOrder.toUpperCase()} NULLS LAST`
+        : `play_count ${normalizedOrder.toUpperCase()}`;
 
   return db
     .query(
@@ -487,12 +527,12 @@ export function getTracks(
       FROM tracks
       JOIN albums  ON tracks.album_id  = albums.id
       JOIN artists ON albums.artist_id = artists.id
-      LEFT JOIN plays ON plays.track_id = tracks.id
-      ${whereClause}
-      GROUP BY tracks.id
-      ORDER BY ${orderExpr}
-      LIMIT ${limit}`,
-    )
+       LEFT JOIN plays ON plays.track_id = tracks.id
+       ${whereClause}
+       GROUP BY tracks.id
+       ORDER BY ${orderExpr}
+       LIMIT ${normalizedLimit}`,
+     )
     .all(...whereParams) as TrackRow[];
 }
 
@@ -502,6 +542,7 @@ export function searchTracks(
   query: string,
   limit = 20,
 ): TrackRow[] {
+  const normalizedLimit = normalizePositiveInteger(limit, 20);
   try {
     return db
       .query(
@@ -524,7 +565,7 @@ export function searchTracks(
         ORDER BY play_count DESC
         LIMIT ?`,
       )
-      .all(query + "*", limit) as TrackRow[];
+      .all(query + "*", normalizedLimit) as TrackRow[];
   } catch {
     // Fallback: simple LIKE search
     const like = `%${query}%`;
@@ -548,7 +589,7 @@ export function searchTracks(
         ORDER BY play_count DESC
         LIMIT ?`,
       )
-      .all(like, like, like, limit) as TrackRow[];
+      .all(like, like, like, normalizedLimit) as TrackRow[];
   }
 }
 
@@ -566,6 +607,8 @@ export function getPlays(
   } = {},
 ): PlayRow[] {
   const { limit = 50, offset = 0, artistId, trackId } = opts;
+  const normalizedLimit = normalizePositiveInteger(limit, 50);
+  const normalizedOffset = normalizeNonNegativeInteger(offset, 0);
   const whereParts: string[] = [];
   const whereParams: (string | number)[] = [];
 
@@ -599,12 +642,12 @@ export function getPlays(
       FROM plays
       JOIN tracks  ON plays.track_id  = tracks.id
       JOIN albums  ON tracks.album_id = albums.id
-      JOIN artists ON albums.artist_id = artists.id
-      ${whereClause}
-      ORDER BY plays.timestamp DESC
-      LIMIT ${limit}
-      OFFSET ${offset}`,
-    )
+       JOIN artists ON albums.artist_id = artists.id
+       ${whereClause}
+       ORDER BY plays.timestamp DESC
+       LIMIT ${normalizedLimit}
+       OFFSET ${normalizedOffset}`,
+     )
     .all(...whereParams) as PlayRow[];
 }
 
