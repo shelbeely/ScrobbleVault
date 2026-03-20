@@ -1,0 +1,58 @@
+name: Copilot-ready scoped task
+description: A small, implementation-ready issue for a single draft PR.
+title: "[copilot-ready] "
+labels:
+  - copilot-ready
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Use this template for work that is already scoped and ready for implementation.
+
+        When assigned:
+        - treat this issue as the full source of truth
+        - open a draft PR
+        - implement only the scoped task
+        - link the PR back to this issue
+  - type: textarea
+    id: scope
+    attributes:
+      label: Scope
+      description: Describe the specific change to implement.
+      placeholder: Explain exactly what should change and what should stay untouched.
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance criteria
+      description: Define the concrete requirements that must be true when this issue is done.
+      placeholder: |
+        - [ ] ...
+        - [ ] ...
+    validations:
+      required: true
+  - type: textarea
+    id: files
+    attributes:
+      label: Files likely to be modified
+      description: List the expected files or directories for this change.
+      placeholder: |
+        - /home/runner/work/ScrobbleVault/ScrobbleVault/src/...
+        - /home/runner/work/ScrobbleVault/ScrobbleVault/.github/...
+    validations:
+      required: true
+  - type: input
+    id: related-plan
+    attributes:
+      label: Related plan or parent issue
+      description: Link the planning issue or parent task if one exists.
+      placeholder: "#123"
+  - type: textarea
+    id: validation
+    attributes:
+      label: Validation
+      description: List the checks or smoke tests that should be run for this issue.
+      placeholder: |
+        - bun run typecheck
+        - bun run src/index.ts --help

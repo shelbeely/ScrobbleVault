@@ -1,0 +1,38 @@
+name: Copilot review request
+description: Request focused review or validation for a scoped change or PR.
+title: "[copilot-review] "
+labels:
+  - copilot-review
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Use this template when a scoped change needs follow-up review, validation, or handoff.
+
+        Keep review requests focused and tie them to an existing issue or draft PR.
+  - type: input
+    id: related-work
+    attributes:
+      label: Related issue or PR
+      description: Link the scoped issue or draft PR that needs review.
+      placeholder: "#123 or #456"
+    validations:
+      required: true
+  - type: textarea
+    id: review-scope
+    attributes:
+      label: Review scope
+      description: Describe exactly what needs review.
+      placeholder: Explain the specific implementation area, risk, or validation target.
+    validations:
+      required: true
+  - type: textarea
+    id: review-criteria
+    attributes:
+      label: Review acceptance criteria
+      description: Explain what a successful review should confirm or resolve.
+      placeholder: |
+        - Confirm the scoped change meets the issue acceptance criteria
+        - Identify any blockers before the draft PR is marked ready
+    validations:
+      required: true

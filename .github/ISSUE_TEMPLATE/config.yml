@@ -1,0 +1,8 @@
+blank_issues_enabled: true
+contact_links:
+  - name: GitHub repository instructions documentation
+    url: https://docs.github.com/en/copilot/how-tos/configure-custom-instructions/add-repository-instructions
+    about: Reference for repository-level Copilot custom instructions.
+  - name: GitHub Copilot coding agent PR workflow
+    url: https://docs.github.com/en/copilot/how-tos/use-copilot-agents/coding-agent/create-a-pr
+    about: Reference for opening and managing draft PRs with GitHub Copilot coding agents.
