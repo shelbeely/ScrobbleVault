@@ -80,6 +80,9 @@ import {
 const PAGE_SIZE = 50;
 const DEFAULT_RECENT_LIMIT = 50;
 const MAX_COMPAT_SCROBBLES = 50;
+const ARTIST_SORT_FIELDS = ["plays", "name", "recent"] as const;
+const ALBUM_SORT_FIELDS = ["plays", "title", "recent"] as const;
+const TRACK_SORT_FIELDS = ["plays", "title", "recent"] as const;
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -109,6 +112,16 @@ function qpInt(url: URL, name: string, fallback: number): number {
   const value = url.searchParams.get(name);
   const number = value ? parseInt(value, 10) : Number.NaN;
   return Number.isNaN(number) ? fallback : number;
+}
+
+function qpChoice<T extends string>(
+  url: URL,
+  name: string,
+  allowed: readonly T[],
+  fallback: T,
+): T {
+  const value = url.searchParams.get(name);
+  return value && allowed.includes(value as T) ? (value as T) : fallback;
 }
 
 function parseDateParam(url: URL, name: string): Date | null {
@@ -733,9 +746,9 @@ get(/^\/now-playing$/, (_req, _url, db) => html(renderNowPlaying(getNowPlaying(d
 // ─── Artists ─────────────────────────────────────────────────────────────────
 
 get(/^\/artists$/, (_req, url, db) => {
-  const page = qpInt(url, "page", 1);
-  const sort = qp(url, "sort", "plays") as "plays" | "name" | "recent";
-  const order = qp(url, "order", "desc") as "asc" | "desc";
+  const page = Math.max(1, qpInt(url, "page", 1));
+  const sort = qpChoice(url, "sort", ARTIST_SORT_FIELDS, "plays");
+  const order = qpChoice(url, "order", ["asc", "desc"] as const, "desc");
   const all = getArtists(db, { limit: 10_000, sortBy: sort, order });
   const slice = all.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
   return html(renderArtists(
@@ -765,9 +778,9 @@ get(/^\/artists\/([^/]+)$/, (_req, _url, db, match) => {
 // ─── Albums ───────────────────────────────────────────────────────────────────
 
 get(/^\/albums$/, (_req, url, db) => {
-  const page = qpInt(url, "page", 1);
-  const sort = qp(url, "sort", "plays") as "plays" | "title" | "recent";
-  const order = qp(url, "order", "desc") as "asc" | "desc";
+  const page = Math.max(1, qpInt(url, "page", 1));
+  const sort = qpChoice(url, "sort", ALBUM_SORT_FIELDS, "plays");
+  const order = qpChoice(url, "order", ["asc", "desc"] as const, "desc");
   const all = getAlbums(db, { limit: 10_000, sortBy: sort, order });
   const slice = all.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
   return html(renderAlbums(
@@ -791,9 +804,9 @@ get(/^\/albums\/([^/]+)$/, (_req, _url, db, match) => {
 // ─── Tracks ───────────────────────────────────────────────────────────────────
 
 get(/^\/tracks$/, (_req, url, db) => {
-  const page = qpInt(url, "page", 1);
-  const sort = qp(url, "sort", "plays") as "plays" | "title" | "recent";
-  const order = qp(url, "order", "desc") as "asc" | "desc";
+  const page = Math.max(1, qpInt(url, "page", 1));
+  const sort = qpChoice(url, "sort", TRACK_SORT_FIELDS, "plays");
+  const order = qpChoice(url, "order", ["asc", "desc"] as const, "desc");
   const all = getTracks(db, { limit: 10_000, sortBy: sort, order });
   const slice = all.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
   return html(renderTracks(
@@ -817,7 +830,7 @@ get(/^\/tracks\/([^/]+)$/, (_req, _url, db, match) => {
 // ─── Plays ────────────────────────────────────────────────────────────────────
 
 get(/^\/plays$/, (_req, url, db) => {
-  const page = qpInt(url, "page", 1);
+  const page = Math.max(1, qpInt(url, "page", 1));
   const limit = 10_000;
   const allPlays = getPlays(db, { limit });
   const slice = allPlays.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);

@@ -36,6 +36,8 @@ interface ParsedArgs {
   flags: Record<string, string>;
 }
 
+type SortOrder = "asc" | "desc";
+
 function parseArgs(argv: string[]): ParsedArgs {
   const flags: Record<string, string> = {};
   const positional: string[] = [];
@@ -64,6 +66,27 @@ function parseArgs(argv: string[]): ParsedArgs {
   }
 
   return { command, positional, flags };
+}
+
+function failCliValidation(message: string): never {
+  console.error(`Error: ${message}`);
+  process.exit(1);
+}
+
+function parseLimitFlag(value: string | undefined, fallback = 20): number {
+  if (value === undefined) return fallback;
+  const limit = Number(value);
+  if (!Number.isInteger(limit) || limit < 1) {
+    failCliValidation(`invalid --limit value "${value}". Expected a positive integer.`);
+  }
+  return limit;
+}
+
+function parseOrderFlag(value: string | undefined, fallback: SortOrder = "desc"): SortOrder {
+  if (value === undefined) return fallback;
+  const normalized = value.toLowerCase();
+  if (normalized === "asc" || normalized === "desc") return normalized;
+  failCliValidation(`invalid --order value "${value}". Expected "asc" or "desc".`);
 }
 
 // ─── Help screen ──────────────────────────────────────────────────────────────
@@ -183,9 +206,7 @@ const PLAY_COLS: ColDef[] = [
 const { command, positional, flags } = parseArgs(Bun.argv.slice(2));
 
 const dbPath = flags["database"] ?? getDefaultDbPath();
-const limit = flags["limit"] ? parseInt(flags["limit"], 10) : 20;
 const sortFlag = flags["sort"] ?? "";
-const orderFlag = (flags["order"] ?? "desc") as "asc" | "desc";
 
 /** Renders a static ink component, waits one tick for output to flush, then exits. */
 async function renderAndExit(element: React.ReactElement): Promise<void> {
@@ -211,6 +232,9 @@ if (
 ) {
   await renderAndExit(<HelpScreen />);
 }
+
+const limit = parseLimitFlag(flags["limit"]);
+const orderFlag = parseOrderFlag(flags["order"]);
 
 // ─── export command (no ink rendering) ───────────────────────────────────────
 

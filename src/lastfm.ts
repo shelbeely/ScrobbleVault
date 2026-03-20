@@ -200,10 +200,16 @@ function syntheticId(input: string): string {
 function extractTrackData(raw: RawTrack): ScrobbleData | null {
   if (raw["@attr"]?.nowplaying === "true") return null;
 
-  const uts = raw.date?.uts;
+  const uts = raw.date?.uts?.trim();
   if (!uts) return null;
 
-  const timestamp = new Date(parseInt(uts, 10) * 1_000).toISOString();
+  const epochSeconds = Number(uts);
+  if (!Number.isInteger(epochSeconds) || epochSeconds < 0) return null;
+
+  const listenedAt = new Date(epochSeconds * 1_000);
+  if (Number.isNaN(listenedAt.getTime())) return null;
+
+  const timestamp = listenedAt.toISOString();
   const trackTitle = raw.name ?? "(unknown track)";
   const trackMbid = raw.mbid ?? "";
   const artistName = raw.artist?.["#text"] ?? "(unknown artist)";

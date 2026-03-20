@@ -24,6 +24,19 @@ function flag(name: string, fallback: string): string {
   return index !== -1 && args[index + 1] ? (args[index + 1] ?? fallback) : fallback;
 }
 
+function failStartupValidation(message: string): never {
+  console.error(`Error: ${message}`);
+  process.exit(1);
+}
+
+function parsePort(value: string): number {
+  const port = Number(value);
+  if (!Number.isInteger(port) || port < 1 || port > 65_535) {
+    failStartupValidation(`invalid port value "${value}". Expected an integer between 1 and 65535.`);
+  }
+  return port;
+}
+
 if (args.includes("--help") || args.includes("-h")) {
   console.log(`
 ScrobbleVault — Save your listening history with Last.fm, Libre.fm, ListenBrainz, or a self-hosted ScrobbleVault instance.
@@ -40,7 +53,7 @@ Options:
   process.exit(0);
 }
 
-const PORT = parseInt(flag("port", Bun.env.PORT ?? "3000"), 10);
+const PORT = parsePort(flag("port", Bun.env.PORT ?? "3000"));
 const HOST = flag("host", Bun.env.HOST ?? "0.0.0.0");
 const DB_PATH = flag("database", getConfiguredDbPath() ?? "");
 
