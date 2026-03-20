@@ -131,7 +131,8 @@ function normalizeChoice<T extends string>(
   allowed: readonly T[],
   fallback: T,
 ): T {
-  return allowed.includes(value as T) ? (value as T) : fallback;
+  const candidate = value as T;
+  return allowed.includes(candidate) ? candidate : fallback;
 }
 
 /** Build a WHERE clause fragment for timestamp filtering. */

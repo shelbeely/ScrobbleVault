@@ -75,6 +75,9 @@ function failCliValidation(message: string): never {
 
 function parseLimitFlag(value: string | undefined, fallback = 20): number {
   if (value === undefined) return fallback;
+  if (value.trim() === "") {
+    failCliValidation("invalid --limit value \"\". Expected a positive integer.");
+  }
   const limit = Number(value);
   if (!Number.isInteger(limit) || limit < 1) {
     failCliValidation(`invalid --limit value "${value}". Expected a positive integer.`);

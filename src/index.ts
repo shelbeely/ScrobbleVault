@@ -30,6 +30,9 @@ function failStartupValidation(message: string): never {
 }
 
 function parsePort(value: string): number {
+  if (value.trim() === "") {
+    failStartupValidation("invalid port value \"\". Expected an integer between 1 and 65535.");
+  }
   const port = Number(value);
   if (!Number.isInteger(port) || port < 1 || port > 65_535) {
     failStartupValidation(`invalid port value "${value}". Expected an integer between 1 and 65535.`);

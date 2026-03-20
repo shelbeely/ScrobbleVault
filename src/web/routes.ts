@@ -121,7 +121,9 @@ function qpChoice<T extends string>(
   fallback: T,
 ): T {
   const value = url.searchParams.get(name);
-  return value && allowed.includes(value as T) ? (value as T) : fallback;
+  if (!value) return fallback;
+  const candidate = value as T;
+  return allowed.includes(candidate) ? candidate : fallback;
 }
 
 function parseDateParam(url: URL, name: string): Date | null {
