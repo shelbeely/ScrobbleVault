@@ -5,10 +5,15 @@
  *   - Bun.file() / Bun.write() for file I/O
  *   - process.platform  for OS detection
  *   - Bun.env           for environment variables
- * No Node.js "fs", "path", "os" imports.
+ * Uses an explicit node:fs import only for cross-platform sync existence checks.
  */
 
-const APP_NAME = "dev.pirateninja.scrobbledb";
+import { existsSync } from "node:fs";
+
+const APP_NAME = "dev.scrobblevault.app";
+const LEGACY_APP_NAMES = ["dev.pirateninja.scrobblevault", "dev.pirateninja.scrobbledb"] as const;
+const DEFAULT_DB_FILE_NAME = "scrobblevault.db";
+const LEGACY_DB_FILE_NAME = "scrobbledb.db";
 export const SCROBBLEVAULT_COMPAT_PATH = "/2.0/";
 
 export interface AuthData {
@@ -31,6 +36,21 @@ export function joinPath(...parts: string[]): string {
     .replace(/[/\\]+$/, "");
 }
 
+function preferPrimaryPath(primaryPath: string, legacyPath: string): string {
+  if (existsSync(primaryPath) || !existsSync(legacyPath)) {
+    return primaryPath;
+  }
+  return legacyPath;
+}
+
+function resolveLegacyPath(primaryPath: string, legacyPaths: readonly string[]): string {
+  let resolved = primaryPath;
+  for (const legacyPath of legacyPaths) {
+    resolved = preferPrimaryPath(resolved, legacyPath);
+  }
+  return resolved;
+}
+
 /** Return the current user's home directory using environment variables. */
 function homeDir(): string {
   if (process.platform === "win32") {
@@ -51,7 +71,9 @@ export async function getDataDir(): Promise<string> {
   } else {
     base = Bun.env.XDG_DATA_HOME ?? joinPath(homeDir(), ".local", "share");
   }
-  const dir = joinPath(base, APP_NAME);
+  const appDir = joinPath(base, APP_NAME);
+  const legacyDirs = LEGACY_APP_NAMES.map((name) => joinPath(base, name));
+  const dir = resolveLegacyPath(appDir, legacyDirs);
   await Bun.write(joinPath(dir, ".keep"), "");
   return dir;
 }
@@ -66,15 +88,25 @@ export function getDataDirSync(): string {
   } else {
     base = Bun.env.XDG_DATA_HOME ?? joinPath(homeDir(), ".local", "share");
   }
-  return joinPath(base, APP_NAME);
+  const appDir = joinPath(base, APP_NAME);
+  const legacyDirs = LEGACY_APP_NAMES.map((name) => joinPath(base, name));
+  return resolveLegacyPath(appDir, legacyDirs);
 }
 
 export function getDefaultDbPath(): string {
-  return joinPath(getDataDirSync(), "scrobbledb.db");
+  const dataDir = getDataDirSync();
+  const dbPath = joinPath(dataDir, DEFAULT_DB_FILE_NAME);
+  const legacyDbPath = joinPath(dataDir, LEGACY_DB_FILE_NAME);
+  return preferPrimaryPath(dbPath, legacyDbPath);
 }
 
 export function getDefaultAuthPath(): string {
   return joinPath(getDataDirSync(), "auth.json");
+}
+
+/** Return the configured database path, preferring the new env var and falling back to the legacy name. */
+export function getConfiguredDbPath(): string | undefined {
+  return Bun.env.SCROBBLEVAULT_DB_PATH ?? Bun.env.SCROBBLEDB_PATH;
 }
 
 // ─── Auth I/O (Bun-native) ────────────────────────────────────────────────────
@@ -101,8 +133,7 @@ function readFileSync(path: string): Uint8Array {
 /** Synchronous auth load used at startup (reads file via Bun's readFileSync shim). */
 export function loadAuth(authPath?: string): AuthData | null {
   const path = authPath ?? getDefaultAuthPath();
-  const result = Bun.spawnSync(["test", "-f", path]);
-  if (result.exitCode !== 0) return null;
+  if (!existsSync(path)) return null;
   try {
     const bytes = readFileSync(path);
     return JSON.parse(new TextDecoder().decode(bytes)) as AuthData;

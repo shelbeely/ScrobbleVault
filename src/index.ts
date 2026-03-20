@@ -12,6 +12,7 @@
 
 import { ensureDefaultUser } from "./auth";
 import { openDb, initSchema, setupFts5 } from "./db";
+import { getConfiguredDbPath } from "./config";
 import { routeRequest } from "./web/routes";
 
 // ─── CLI args (no "process.argv" parser library needed) ───────────────────────
@@ -41,7 +42,7 @@ Options:
 
 const PORT = parseInt(flag("port", Bun.env.PORT ?? "3000"), 10);
 const HOST = flag("host", Bun.env.HOST ?? "0.0.0.0");
-const DB_PATH = flag("database", Bun.env.SCROBBLEDB_PATH ?? "");
+const DB_PATH = flag("database", getConfiguredDbPath() ?? "");
 
 // ─── Database bootstrap ───────────────────────────────────────────────────────
 

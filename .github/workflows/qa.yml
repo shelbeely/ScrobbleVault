@@ -50,4 +50,4 @@ jobs:
 
       - name: Smoke-test startup
         run: |
-          SCROBBLEDB_PATH=/tmp/ci-test.db timeout 5 bun run src/index.ts --help
+          SCROBBLEVAULT_DB_PATH=/tmp/ci-test.db timeout 5 bun run src/index.ts --help

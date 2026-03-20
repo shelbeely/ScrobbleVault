@@ -8,8 +8,8 @@ services:
     envVars:
       - key: HOST
         value: 0.0.0.0
-      - key: SCROBBLEDB_PATH
-        value: /var/data/scrobbledb.db
+      - key: SCROBBLEVAULT_DB_PATH
+        value: /var/data/scrobblevault.db
     disk:
       name: scrobblevault-data
       mountPath: /var/data

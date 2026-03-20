@@ -1,5 +1,5 @@
 /**
- * HTTP route handlers for the scrobbledb web app.
+ * HTTP route handlers for the ScrobbleVault web app.
  *
  * Each handler receives the parsed URL and request, performs DB queries
  * (or API calls for ingest), and returns a Response.

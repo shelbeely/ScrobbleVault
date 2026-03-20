@@ -144,7 +144,7 @@ Useful environment variables:
 |---|---|
 | `PORT` | HTTP port |
 | `HOST` | Bind address, defaults to `0.0.0.0` |
-| `SCROBBLEDB_PATH` | SQLite database path |
+| `SCROBBLEVAULT_DB_PATH` | SQLite database path |
 | `SCROBBLEVAULT_DEFAULT_USERNAME` | Seed username |
 | `SCROBBLEVAULT_DEFAULT_PASSWORD` | Seed password |
 | `SCROBBLEVAULT_DUPLICATE_WINDOW_SECONDS` | Duplicate-detection window (default `180`) |
@@ -164,7 +164,7 @@ ScrobbleVault can deploy to Render, but **SQLite must live on a persistent disk*
 
 ```bash
 HOST=0.0.0.0
-SCROBBLEDB_PATH=/var/data/scrobbledb.db
+SCROBBLEVAULT_DB_PATH=/var/data/scrobblevault.db
 SCROBBLEVAULT_DEFAULT_USERNAME=admin
 SCROBBLEVAULT_DEFAULT_PASSWORD=<your password>
 ```
@@ -220,6 +220,22 @@ The browser UI includes:
 - `/now-playing` — cached now-playing state
 - `/settings` — external network / compatibility source settings
 - `/login` — local session login page
+
+---
+
+## Screenshots
+
+| Dashboard | Wrapped |
+|---|---|
+| ![ScrobbleVault dashboard](docs/screenshots/dashboard.png) | ![ScrobbleVault wrapped view](docs/screenshots/wrapped.png) |
+
+| Universe | Timeline |
+|---|---|
+| ![ScrobbleVault universe map](docs/screenshots/universe.png) | ![ScrobbleVault timeline view](docs/screenshots/timeline.png) |
+
+| Settings | Login |
+|---|---|
+| ![ScrobbleVault settings](docs/screenshots/settings.png) | ![ScrobbleVault login screen](docs/screenshots/login.png) |
 
 ---
 
@@ -469,11 +485,17 @@ Default data locations:
 
 | Platform | Default location |
 |---|---|
-| Linux/Unix | `~/.local/share/dev.pirateninja.scrobbledb/` |
-| macOS | `~/Library/Application Support/dev.pirateninja.scrobbledb/` |
-| Windows | `%LOCALAPPDATA%\dev.pirateninja.scrobbledb\` |
+| Linux/Unix | `~/.local/share/dev.scrobblevault.app/` |
+| macOS | `~/Library/Application Support/dev.scrobblevault.app/` |
+| Windows | `%LOCALAPPDATA%\dev.scrobblevault.app\` |
 
-On Render, you should override this with a disk-backed path such as `/var/data/scrobbledb.db`.
+On Render, you should override this with a disk-backed path such as `/var/data/scrobblevault.db`.
+
+---
+
+## Acknowledgements
+
+ScrobbleVault is a rewrite inspired by [lastfm-to-sqlite](https://github.com/jacobian/lastfm-to-sqlite) by [Jacob Kaplan-Moss](https://github.com/jacobian).
 
 ---
 
