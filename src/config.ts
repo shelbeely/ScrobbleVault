@@ -10,8 +10,8 @@
 
 import { existsSync } from "node:fs";
 
-const APP_NAME = "dev.pirateninja.scrobblevault";
-const LEGACY_APP_NAME = "dev.pirateninja.scrobbledb";
+const APP_NAME = "dev.scrobblevault.app";
+const LEGACY_APP_NAMES = ["dev.pirateninja.scrobblevault", "dev.pirateninja.scrobbledb"] as const;
 const DEFAULT_DB_FILE_NAME = "scrobblevault.db";
 const LEGACY_DB_FILE_NAME = "scrobbledb.db";
 export const SCROBBLEVAULT_COMPAT_PATH = "/2.0/";
@@ -43,6 +43,14 @@ function preferPrimaryPath(primaryPath: string, legacyPath: string): string {
   return legacyPath;
 }
 
+function resolveLegacyPath(primaryPath: string, legacyPaths: readonly string[]): string {
+  let resolved = primaryPath;
+  for (const legacyPath of legacyPaths) {
+    resolved = preferPrimaryPath(resolved, legacyPath);
+  }
+  return resolved;
+}
+
 /** Return the current user's home directory using environment variables. */
 function homeDir(): string {
   if (process.platform === "win32") {
@@ -64,8 +72,8 @@ export async function getDataDir(): Promise<string> {
     base = Bun.env.XDG_DATA_HOME ?? joinPath(homeDir(), ".local", "share");
   }
   const appDir = joinPath(base, APP_NAME);
-  const legacyDir = joinPath(base, LEGACY_APP_NAME);
-  const dir = preferPrimaryPath(appDir, legacyDir);
+  const legacyDirs = LEGACY_APP_NAMES.map((name) => joinPath(base, name));
+  const dir = resolveLegacyPath(appDir, legacyDirs);
   await Bun.write(joinPath(dir, ".keep"), "");
   return dir;
 }
@@ -81,8 +89,8 @@ export function getDataDirSync(): string {
     base = Bun.env.XDG_DATA_HOME ?? joinPath(homeDir(), ".local", "share");
   }
   const appDir = joinPath(base, APP_NAME);
-  const legacyDir = joinPath(base, LEGACY_APP_NAME);
-  return preferPrimaryPath(appDir, legacyDir);
+  const legacyDirs = LEGACY_APP_NAMES.map((name) => joinPath(base, name));
+  return resolveLegacyPath(appDir, legacyDirs);
 }
 
 export function getDefaultDbPath(): string {

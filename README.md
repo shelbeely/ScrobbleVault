@@ -485,9 +485,9 @@ Default data locations:
 
 | Platform | Default location |
 |---|---|
-| Linux/Unix | `~/.local/share/dev.pirateninja.scrobblevault/` |
-| macOS | `~/Library/Application Support/dev.pirateninja.scrobblevault/` |
-| Windows | `%LOCALAPPDATA%\dev.pirateninja.scrobblevault\` |
+| Linux/Unix | `~/.local/share/dev.scrobblevault.app/` |
+| macOS | `~/Library/Application Support/dev.scrobblevault.app/` |
+| Windows | `%LOCALAPPDATA%\dev.scrobblevault.app\` |
 
 On Render, you should override this with a disk-backed path such as `/var/data/scrobblevault.db`.
 
